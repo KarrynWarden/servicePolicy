@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Контракт SOAP-сервиса InsCheck (операция GetInsPrkState).
+  Namespace и имена элементов совпадают со старым сервисом, чтобы клиенты
+  работали без изменений. На основе этого XSD Spring WS генерирует WSDL
+  по адресу /ws/inscheck.wsdl
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="http://tempuri.org/"
+           targetNamespace="http://tempuri.org/"
+           elementFormDefault="qualified">
+
+    <!-- ===== Запрос ===== -->
+    <xs:element name="GetInsPrkState">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="query" type="tns:query"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="query">
+        <xs:sequence>
+            <xs:element name="nrec" type="xs:string"/>
+            <xs:element name="date1" type="xs:string"/>
+            <xs:element name="date2" type="xs:string"/>
+            <xs:element name="type_org" type="xs:string"/>
+            <xs:element name="code_org" type="xs:string"/>
+            <xs:element name="fam" type="xs:string" minOccurs="0"/>
+            <xs:element name="im" type="xs:string" minOccurs="0"/>
+            <xs:element name="ot" type="xs:string" minOccurs="0"/>
+            <xs:element name="w" type="xs:string" minOccurs="0"/>
+            <xs:element name="dr" type="xs:string" minOccurs="0"/>
+            <xs:element name="vpolis" type="xs:string" minOccurs="0"/>
+            <xs:element name="npolis" type="xs:string" minOccurs="0"/>
+            <xs:element name="doctype" type="xs:string" minOccurs="0"/>
+            <xs:element name="docser" type="xs:string" minOccurs="0"/>
+            <xs:element name="docnum" type="xs:string" minOccurs="0"/>
+            <xs:element name="snils" type="xs:string" minOccurs="0"/>
+            <xs:element name="mr" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- ===== Ответ ===== -->
+    <xs:element name="GetInsPrkStateResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="answer" type="tns:answer"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="answer">
+        <xs:sequence>
+            <xs:element name="nrec" type="xs:string" minOccurs="0"/>
+            <xs:element name="ack" type="xs:string" minOccurs="0"/>
+            <xs:element name="err" type="tns:err" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="alg" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="ins" type="tns:ins" minOccurs="0"/>
+            <xs:element name="prk" type="tns:prk" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="p_disp" type="xs:string" minOccurs="0"/>
+            <xs:element name="p_proph" type="xs:string" minOccurs="0"/>
+            <xs:element name="p_healthc" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="err">
+        <xs:sequence>
+            <xs:element name="errcode" type="xs:string" minOccurs="0"/>
+            <xs:element name="errtext" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="ins">
+        <xs:sequence>
+            <xs:element name="smo" type="xs:string" minOccurs="0"/>
+            <xs:element name="vpolis" type="xs:string" minOccurs="0"/>
+            <xs:element name="fpolis" type="xs:string" minOccurs="0"/>
+            <xs:element name="npolis" type="xs:string" minOccurs="0"/>
+            <xs:element name="dvisit" type="xs:string" minOccurs="0"/>
+            <xs:element name="dbeg" type="xs:string" minOccurs="0"/>
+            <xs:element name="dend" type="xs:string" minOccurs="0"/>
+            <xs:element name="reason" type="xs:string" minOccurs="0"/>
+            <xs:element name="id" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="prk">
+        <xs:sequence>
+            <xs:element name="mo" type="xs:string" minOccurs="0"/>
+            <xs:element name="modt" type="xs:string" minOccurs="0"/>
+            <xs:element name="podr" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+</xs:schema>
