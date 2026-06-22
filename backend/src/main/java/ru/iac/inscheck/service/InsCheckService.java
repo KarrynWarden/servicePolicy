@@ -225,10 +225,9 @@ public class InsCheckService {
         if (r == null) {
             r = members.stream().filter(p -> after(p.getDvizit(), date2)).min(byDbeg()).orElse(null);
         }
-        // e) Max(Dbeg) среди Reason≠5 и DVizit < Date1
+        // e) Max(Dbeg) среди Reason≠5 (по пакету — без условия DVizit < Date1)
         if (r == null) {
-            r = members.stream().filter(p -> notReason5(p) && before(p.getDvizit(), date1))
-                    .max(byDbeg()).orElse(null);
+            r = members.stream().filter(InsCheckService::notReason5).max(byDbeg()).orElse(null);
         }
         // f) Max(Dbeg)
         if (r == null) {
@@ -259,8 +258,12 @@ public class InsCheckService {
         if (sp.hasSnils() && !eq(sp.getSnils(), p.getSs())) {
             errors.add(ErrCode.E207);
         }
-        if (sp.hasMr() && !eq(sp.getMr(), p.getMr())) {
-            errors.add(ErrCode.E208);
+        if (sp.hasMr()) {
+            // Перенос пакета: 208, если jaro_winkler(upper(СП.mr), upper(вход.mr)) < 0.8.
+            double sim = p.getMr() == null ? 0.0 : dao.mrSimilarity(sp.getMr(), p.getMr());
+            if (sim < 0.8) {
+                errors.add(ErrCode.E208);
+            }
         }
     }
 
@@ -296,8 +299,12 @@ public class InsCheckService {
         Ins ins = new Ins();
         ins.setSmo(str(p.getSmo()));
         ins.setVpolis(str(p.getVpolis()));
-        ins.setFpolis(str(p.getFpolis()));
-        ins.setNpolis(p.getNpolis());
+        // Перенос пакета: fpolis выдаётся только для vpolis=3, иначе пусто;
+        // npolis = ЕНП при vpolis=3, иначе номер полиса
+        // (decode(vpolis,3,fpolis,null), decode(vpolis,3,enp,npolis)).
+        boolean enp = p.getVpolis() != null && p.getVpolis() == 3;
+        ins.setFpolis(enp ? str(p.getFpolis()) : null);
+        ins.setNpolis(enp ? p.getEnp() : p.getNpolis());
         ins.setDvisit(date(p.getDvizit()));
         ins.setDbeg(date(p.getDbeg()));
         ins.setDend(date(p.getDend()));
@@ -370,21 +377,21 @@ public class InsCheckService {
     }
 
     private static boolean periodIn(IPerson p, LocalDate date1, LocalDate date2) {
-        // [date1;date2] in [dvizit;dend]
+        // Перенос пакета: запись актуальна на период, если date1 <= dend И dvizit <= date2
+        // (пересечение периодов, оригинал: b.date1<=a.dend and a.dvizit<=b.date2).
         return p.getDvizit() != null && p.getDend() != null
-                && !p.getDvizit().isAfter(date1) && !p.getDend().isBefore(date2);
+                && !date1.isAfter(p.getDend())          // date1 <= dend
+                && !p.getDvizit().isAfter(date2);       // dvizit <= date2
     }
 
     private boolean isActual(IPerson p, LocalDate date1, LocalDate date2) {
-        return periodIn(p, date1, date2) && notReason5(p);
+        // Актуальность для проверок 300–305 — только пересечение периодов (как в пакете);
+        // reason учитывается отдельно при выборе ПЗСК и в notActualReason.
+        return periodIn(p, date1, date2);
     }
 
     private static boolean after(LocalDate d, LocalDate ref) {
         return d != null && d.isAfter(ref);
-    }
-
-    private static boolean before(LocalDate d, LocalDate ref) {
-        return d != null && d.isBefore(ref);
     }
 
     private static Comparator<IPerson> byDbeg() {

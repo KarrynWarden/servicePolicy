@@ -1,82 +1,80 @@
 package ru.iac.inscheck.util;
 
 /**
- * Русский метафон («созвучное», п.3.1.4.3) для приведения ФИО к фонетическому коду.
+ * Русский фонетический код ФИО («созвучное», п.3.1.4.3).
  *
- * В старой системе метафон-коды хранились в IPERSON в колонках META_FAM/META_IM/
- * META_OT (на это прямо ссылается постановка, п.4.2.5). Сравнение идёт по равенству
- * Metafon(вход) = IPerson.Meta_*. Поэтому здесь считается метафон ВХОДНОГО значения,
- * а в БД сравнивается с предрасчитанными колонками.
+ * Точный порт Oracle-функции a81.SoundexRUS из старой системы. В РС ЕРЗ колонки
+ * IPERSON.META_FAM/META_IM/META_OT предрасчитаны именно этой функцией, поэтому
+ * сравнение Metafon(вход) = IPerson.Meta_* в алгоритмах Р01/В01–В03/В06 работает
+ * только при побайтовом совпадении кодов — реализация ниже воспроизводит
+ * оригинал один-в-один.
  *
- * TODO: алгоритм должен совпадать с генератором META_* в регистре РС ЕРЗ.
- * Реализация ниже — классический русский metaphone (оглушение, схлопывание
- * гласных, замена созвучных согласных). При расхождении с регистром — поправить
- * здесь и/или пересчитать колонки META_* одним и тем же алгоритмом.
+ * Алгоритм (оригинал):
+ *   ZV_SOGL    = 'БЗДВГЖ'              — звонкие согласные
+ *   GL_SOGL    = 'ПСТФКШ'              — их глухие пары (по позиции)
+ *   SOGL_LIST  = 'БЗДВГЖПСТФКШЧЩХЦНМРЛ' — обрабатываемые согласные
+ *   GLASN_LIST = 'АЯЕЁОИУЮЭЫ'          — гласные (для Ь/Ъ)
+ * Для каждого символа:
+ *   - согласная: оглушается (Б→П, З→С, Д→Т, В→Ф, Г→К, Ж→Ш); если предыдущий
+ *     результат 'Т', а текущий 'С' — пара ТС схлопывается в 'Ц';
+ *   - гласные группируются: А/О/Я→А, И/Е/Ё/Э/Й/Ы→И, У/Ю→У;
+ *   - Ь/Ъ перед гласной → И, иначе отбрасывается;
+ *   - прочие символы (пробелы, цифры, латиница, знаки) отбрасываются;
+ *   - подряд идущие одинаковые символы результата схлопываются.
+ * Пустой результат → '-'.
  */
 public final class RussianMetaphone {
+
+    private static final String ZV_SOGL = "БЗДВГЖ";
+    private static final String GL_SOGL = "ПСТФКШ";
+    private static final String SOGL_LIST = "БЗДВГЖПСТФКШЧЩХЦНМРЛ";
+    private static final String GLASN_LIST = "АЯЕЁОИУЮЭЫ";
 
     private RussianMetaphone() {
     }
 
+    /** Возвращает фонетический код, как Oracle a81.SoundexRUS (для пустого/null входа — "-"). */
     public static String encode(String input) {
         if (input == null) {
-            return null;
+            return "-";
         }
-        String s = input.trim().toUpperCase();
-        if (s.isEmpty()) {
-            return "";
-        }
+        String fio = input.toUpperCase();
+        StringBuilder res = new StringBuilder();
 
-        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < fio.length(); i++) {
+            char src = fio.charAt(i);
+            Character cur = src;
 
-        // 1. Группы гласных -> к одной «опорной» гласной (О-А-Э-И).
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case 'Й', 'Ё', 'Ю', 'Я', 'Е' -> sb.append("И");
-                case 'О', 'Ы' -> sb.append("А");
-                case 'У' -> sb.append("О");
-                case 'Э' -> sb.append("И");
-                default -> sb.append(c);
+            if (SOGL_LIST.indexOf(src) >= 0) {
+                // согласная: оглушение по позиции в ZV_SOGL → GL_SOGL
+                int zPos = ZV_SOGL.indexOf(src);
+                if (zPos >= 0) {
+                    cur = GL_SOGL.charAt(zPos);
+                }
+                // ТС → Ц (предыдущий символ результата 'Т', текущий 'С')
+                if (res.length() > 0 && res.charAt(res.length() - 1) == 'Т' && cur == 'С') {
+                    cur = 'Ц';
+                    res.deleteCharAt(res.length() - 1);
+                }
+            } else if (src == 'А' || src == 'О' || src == 'Я') {
+                cur = 'А';
+            } else if (src == 'И' || src == 'Е' || src == 'Ё' || src == 'Э' || src == 'Й' || src == 'Ы') {
+                cur = 'И';
+            } else if (src == 'У' || src == 'Ю') {
+                cur = 'У';
+            } else if ((src == 'Ь' || src == 'Ъ')
+                    && i + 1 < fio.length() && GLASN_LIST.indexOf(fio.charAt(i + 1)) >= 0) {
+                cur = 'И';
+            } else {
+                cur = null; // отбрасываемый символ
+            }
+
+            // схлопывание подряд идущих одинаковых символов
+            if (cur != null && (res.length() == 0 || res.charAt(res.length() - 1) != cur)) {
+                res.append(cur.charValue());
             }
         }
 
-        // 2. Оглушение звонких согласных на конце и перед глухими.
-        String t = sb.toString();
-        StringBuilder out = new StringBuilder(t.length());
-        for (int i = 0; i < t.length(); i++) {
-            char c = t.charAt(i);
-            char next = i + 1 < t.length() ? t.charAt(i + 1) : 0;
-            boolean endOrVoiceless = (next == 0) || isVoiceless(next);
-            char repl = switch (c) {
-                case 'Б' -> endOrVoiceless ? 'П' : 'Б';
-                case 'З' -> endOrVoiceless ? 'С' : 'З';
-                case 'Д' -> endOrVoiceless ? 'Т' : 'Д';
-                case 'В' -> endOrVoiceless ? 'Ф' : 'В';
-                case 'Г' -> endOrVoiceless ? 'К' : 'Г';
-                default -> c;
-            };
-            out.append(repl);
-        }
-
-        // 3. Удаление мягкого/твёрдого знаков и схлопывание дублей.
-        StringBuilder res = new StringBuilder(out.length());
-        char prev = 0;
-        for (int i = 0; i < out.length(); i++) {
-            char c = out.charAt(i);
-            if (c == 'Ь' || c == 'Ъ') {
-                continue;
-            }
-            if (c != prev) {
-                res.append(c);
-            }
-            prev = c;
-        }
-
-        return res.toString();
-    }
-
-    private static boolean isVoiceless(char c) {
-        return "ПФКТШСХЦЧЩ".indexOf(c) >= 0;
+        return res.length() == 0 ? "-" : res.toString();
     }
 }

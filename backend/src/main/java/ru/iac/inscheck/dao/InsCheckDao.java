@@ -112,6 +112,18 @@ public class InsCheckDao {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * Сходство мест рождения по jaro_winkler (контроль 208). Возвращает значение 0..1,
+     * как Oracle utl_match.jaro_winkler(upper(mr1), upper(mr2)). Сравнивается с порогом 0.8.
+     */
+    public double mrSimilarity(String mr1, String mr2) {
+        MapSqlParameterSource p = new MapSqlParameterSource()
+                .addValue("mr1", mr1)
+                .addValue("mr2", mr2);
+        Double sim = jdbc.queryForObject(sql.getSql("ref/mr_similar.sql"), p, Double.class);
+        return sim == null ? 0.0 : sim;
+    }
+
     /** Признак прохождения мероприятия (DISP/PROPH/HEALTHC) в году даты окончания поиска. */
     public boolean hasEvent(long personId, String eventType, int year) {
         MapSqlParameterSource p = new MapSqlParameterSource()

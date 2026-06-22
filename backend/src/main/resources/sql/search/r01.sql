@@ -1,13 +1,17 @@
--- Р01: 3 из 4х параметров {метафон(Фам), метафон(Им), метафон(От), Др} + Полис (обязателен).
--- "метафон/созвучное" (п.3.1.4.3) = равенство с предрасчитанными колонками META_*.
--- Метафон входного значения считается в Java (RussianMetaphone) и приходит как :meta_*.
-select id, idmain
-from iperson
-where (
-        (case when meta_fam = :meta_fam then 1 else 0 end)
-      + (case when meta_im  = :meta_im  then 1 else 0 end)
-      + (case when meta_ot  = :meta_ot  then 1 else 0 end)
-      + (case when (cast(:dr as text) is not null and dr = to_date(:dr, 'YYYY-MM-DD')) then 1 else 0 end)
+-- Р01: 3 из 4х {метафон(Фам), метафон(Им), метафон(От), Др} + Полис (обязателен).
+-- Перенос пакета: метафон-условия на записи b, Др на записи c, Полис на a
+-- (a.id=b.id=c.id). META_* в IPERSON предрасчитаны Oracle a81.SoundexRUS;
+-- метафон входа считается в Java тем же алгоритмом (RussianMetaphone) и приходит как :meta_*.
+select a.id as id, max(a.idmain) as idmain
+from iperson a
+join iperson b on b.id = a.id
+join iperson c on c.id = a.id
+where a.vpolis = :vpolis
+  and (a.npolis = :npolis or (:vpolis = 3 and a.enp = :npolis))
+  and (
+        (case when b.meta_fam = :meta_fam then 1 else 0 end)
+      + (case when b.meta_im  = :meta_im  then 1 else 0 end)
+      + (case when b.meta_ot  = :meta_ot  then 1 else 0 end)
+      + (case when (cast(:dr as text) is not null and c.dr = to_date(:dr, 'YYYY-MM-DD')) then 1 else 0 end)
       ) >= 3
-  and vpolis = :vpolis
-  and (npolis = :npolis or (:vpolis = 3 and enp = :npolis))
+group by a.id
