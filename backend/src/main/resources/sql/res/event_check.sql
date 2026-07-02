@@ -1,9 +1,8 @@
--- Признаки p_disp / p_proph / p_healthc (Таблица 3): прохождение мероприятия
--- (DISP — диспансеризация, PROPH — профосмотр, HEALTHC — Центр здоровья)
--- в году даты окончания поиска.
--- TODO: уточнить реальную таблицу/источник этих сведений в РС ЕРЗ.
+-- Признаки p_disp / p_proph / p_healthc (Таблица 3): наличие записи в MEDREE_PRDISP
+-- по ЗЛ и коду группы (1 — диспансеризация, 2 — профосмотр, 3 — Центр здоровья)
+-- за нужный год.
 select count(*)::int
-from inscheck_event
+from medree_prdisp
 where id = :id
-  and etype = :etype
-  and yr = :yr
+  and groupcode = :groupcode
+  and year = :yr

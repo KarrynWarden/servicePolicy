@@ -124,11 +124,14 @@ public class InsCheckDao {
         return sim == null ? 0.0 : sim;
     }
 
-    /** Признак прохождения мероприятия (DISP/PROPH/HEALTHC) в году даты окончания поиска. */
-    public boolean hasEvent(long personId, String eventType, int year) {
+    /**
+     * Признак прохождения мероприятия по MEDREE_PRDISP: groupcode 1 — диспансеризация,
+     * 2 — профосмотр, 3 — Центр здоровья, за указанный год.
+     */
+    public boolean hasDisp(long personId, int groupcode, int year) {
         MapSqlParameterSource p = new MapSqlParameterSource()
                 .addValue("id", personId)
-                .addValue("etype", eventType)
+                .addValue("groupcode", groupcode)
                 .addValue("yr", year);
         Integer cnt = jdbc.queryForObject(sql.getSql("res/event_check.sql"), p, Integer.class);
         return cnt != null && cnt > 0;

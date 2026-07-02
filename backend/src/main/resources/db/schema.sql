@@ -54,19 +54,44 @@ create index if not exists ix_iperson_ss       on iperson (ss);
 create index if not exists ix_iperson_idmain   on iperson (idmain);
 
 -- ---------------------------------------------------------------------
--- Прикрепление ЗЛ (IPRKDEPT)
+-- Прикрепление ЗЛ (IPRKDEPT). Полная структура по постановке (PG.IPRKDEPT).
+-- Сервис использует подмножество полей (id, dbeg, dend, dvizit, ddepart,
+-- typeprk, mo, otdel, dept, subdept) — п.5 и формирование podr (п.6.1).
 -- ---------------------------------------------------------------------
 create table if not exists iprkdept (
-    id       bigint,                  -- связь с iperson.id
-    dbeg     date,
-    dend     date,
-    typeprk  integer,                 -- тип прикрепления (1 — основное)
-    mo       integer,                 -- код МО
-    otdel    varchar(4),              -- код отделения (ОООО)
-    dept     integer,                 -- код участка (УУ)
-    subdept  integer                  -- код ФАП (ПП)
+    idrw       bigint generated always as identity primary key, -- идентификатор записи (автоинкремент)
+    id         bigint not null,        -- идентификатор комплекта ЗЛ (IPerson.ID)
+    typeprk    smallint,               -- тип прикрепления (1 — по АПП, 3 — доврачебная в ФАП)
+    dbeg       date,                   -- дата загрузки прикрепления
+    dend       date,                   -- дата загрузки открепления
+    dvizit     date,                   -- дата прикрепления
+    ddepart    date,                   -- дата открепления
+    mo         integer,                -- код МО (SpMu.Code)
+    otdel      varchar(4),             -- код отделения МО ОООО (SpOtdel.Code, хранить 4 симв. с нулями)
+    dept       integer,                -- код участка МО УУ (SpDept.Code)
+    subdept    integer,                -- код пункта/ФАП ПП (SpSubDept.Code)
+    methprk    smallint,               -- способ прикрепления (1 — террит.-участк., 2 — по заявлению)
+    sourcebeg  smallint,               -- источник сведений о прикреплении (1-СМО, 2-ТФОМС, 3-МО)
+    sourceend  smallint,               -- источник сведений об откреплении (1-СМО, 2-ТФОМС, 3-МО)
+    reason     smallint,               -- причина открепления ЗЛ (SpIPrkReason.Code)
+    idlogbeg   bigint,                 -- журнал загрузки о прикреплении (IPrkLog.IDLog)
+    idlogend   bigint,                 -- журнал загрузки об откреплении (IPrkLog.IDLog)
+    lastupdate date                    -- дата последнего обновления записи (заполняется триггером)
 );
 create index if not exists ix_iprkdept_id on iprkdept (id);
+
+-- Триггер: проставляет lastupdate текущей датой на insert/update.
+create or replace function iprkdept_set_lastupdate() returns trigger as $$
+begin
+    new.lastupdate := current_date;
+    return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_iprkdept_lastupdate on iprkdept;
+create trigger trg_iprkdept_lastupdate
+    before insert or update on iprkdept
+    for each row execute function iprkdept_set_lastupdate();
 
 -- ---------------------------------------------------------------------
 -- Журнал операций (INSCHECKLOG), раздел 3.1
@@ -95,15 +120,18 @@ create table if not exists inschecklimit (
 );
 
 -- ---------------------------------------------------------------------
--- Признаки диспансеризации/профосмотра/Центра здоровья
--- (источник для p_disp/p_proph/p_healthc). TODO: согласовать с РС ЕРЗ.
+-- Признаки диспансеризации/профосмотра/Центра здоровья (MEDREE_PRDISP).
+-- Источник для p_disp/p_proph/p_healthc. Заполняется ETL-джобом из Oracle
+-- (таблицы medree на PG нет). GROUPCODE: 1 — диспансеризация, 2 — профосмотр,
+-- 3 — Центр здоровья.
 -- ---------------------------------------------------------------------
-create table if not exists inscheck_event (
-    id     bigint,
-    etype  varchar(10),               -- DISP / PROPH / HEALTHC
-    yr     integer
+create table if not exists medree_prdisp (
+    id        bigint not null,         -- идентификатор ЗЛ (IPerson.ID)
+    groupcode smallint not null,       -- 1 — дисп., 2 — проф., 3 — центр здоровья
+    year      integer not null,        -- год (EXTRACT(YEAR FROM date_2))
+    month     integer                  -- месяц
 );
-create index if not exists ix_event_id on inscheck_event (id, etype, yr);
+create index if not exists ix_medree_prdisp on medree_prdisp (id, year, groupcode);
 
 -- ---------------------------------------------------------------------
 -- Справочники

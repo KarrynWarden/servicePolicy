@@ -179,8 +179,9 @@ public class InsCheckService {
             } else {
                 answer.getPrk().add(buildPrk(prk));
             }
-            // Признаки диспансеризации заполняются только при определении СП
-            fillHealthFlags(answer, pzsk.getId(), date2.getYear());
+            // Признаки диспансеризации заполняются только при определении СП.
+            // Год берётся по Date1 (постановка, столбец «Заполнение»: YEAR принадлежит Date1).
+            fillHealthFlags(answer, pzsk.getId(), date1.getYear());
         }
     }
 
@@ -288,9 +289,10 @@ public class InsCheckService {
     // ===== Признаки диспансеризации (p_disp/p_proph/p_healthc) =====
 
     private void fillHealthFlags(Answer answer, long personId, int year) {
-        answer.setP_disp(yesNo(dao.hasEvent(personId, "DISP", year)));
-        answer.setP_proph(yesNo(dao.hasEvent(personId, "PROPH", year)));
-        answer.setP_healthc(yesNo(dao.hasEvent(personId, "HEALTHC", year)));
+        // MEDREE_PRDISP.groupcode: 1 — диспансеризация, 2 — профосмотр, 3 — Центр здоровья.
+        answer.setP_disp(yesNo(dao.hasDisp(personId, 1, year)));
+        answer.setP_proph(yesNo(dao.hasDisp(personId, 2, year)));
+        answer.setP_healthc(yesNo(dao.hasDisp(personId, 3, year)));
     }
 
     // ===== Сборка элементов ответа =====
