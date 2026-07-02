@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.5</version>
+        <version>3.2.1</version>
         <relativePath/>
     </parent>
 
@@ -18,7 +18,7 @@
     <description>ON-LINE проверка полисов (А14). Перенос SOAP-сервиса GetInsPrkState с Oracle/ASP.NET на PostgreSQL/Spring Boot.</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>17</java.version>
     </properties>
 
     <dependencies>

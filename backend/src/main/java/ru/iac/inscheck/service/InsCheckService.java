@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -41,13 +42,16 @@ public class InsCheckService {
     private static final String IP_TFOMS = "10.0.14.46";
     private static final String METHOD = "GetInsPrkState";
 
-    /** Порядок применения алгоритмов поиска: С, Р, H (новый), В (п.4.2, Таблица 1). */
-    private static final List<SearchAlgorithm> ORDER = List.of(
-            SearchAlgorithm.C01, SearchAlgorithm.C02, SearchAlgorithm.C03,
-            SearchAlgorithm.R01,
-            SearchAlgorithm.H01, SearchAlgorithm.H02, SearchAlgorithm.H03,
-            SearchAlgorithm.V01, SearchAlgorithm.V02, SearchAlgorithm.V03,
-            SearchAlgorithm.V04, SearchAlgorithm.V05, SearchAlgorithm.V06);
+    // Разделы алгоритмов поиска (порядок Таблицы 1): С → Р → H (новый) → В.
+    // Внутри раздела С и В — до первого найденного факта страхования (п.4.2.2).
+    // Р01 — не самостоятельный шаг, а дополнение найденной СП (см. runSearch).
+    private static final List<SearchAlgorithm> SECTION_C =
+            List.of(SearchAlgorithm.C01, SearchAlgorithm.C02, SearchAlgorithm.C03);
+    private static final List<SearchAlgorithm> SECTION_H =
+            List.of(SearchAlgorithm.H01, SearchAlgorithm.H02, SearchAlgorithm.H03);
+    private static final List<SearchAlgorithm> SECTION_V =
+            List.of(SearchAlgorithm.V01, SearchAlgorithm.V02, SearchAlgorithm.V03,
+                    SearchAlgorithm.V04, SearchAlgorithm.V05, SearchAlgorithm.V06);
 
     private final InputValidator validator;
     private final InsCheckDao dao;
@@ -123,29 +127,17 @@ public class InsCheckService {
         LocalDate date1 = LocalDate.parse(q.getDate1(), ISO);
         LocalDate date2 = LocalDate.parse(q.getDate2(), ISO);
 
-        // 4.2. Последовательный поиск до первого найденного факта страхования
-        List<Candidate> found = new ArrayList<>();
-        SearchAlgorithm usedAlg = null;
-        for (SearchAlgorithm alg : ORDER) {
-            if (!applicable(alg, sp)) {
-                continue;
-            }
-            List<Candidate> hits = dao.search(alg, sp);
-            if (!hits.isEmpty()) {
-                found = hits;
-                usedAlg = alg;
-                break;
-            }
-        }
-
-        if (usedAlg == null) {
+        // 4.2–4.3. Поиск СП по разделам С → Р → H → В.
+        SearchResult sr = runSearch(sp);
+        if (sr.found.isEmpty()) {
             errors.add(ErrCode.E200); // СП не найдена
             return;
         }
-        answer.getAlg().add(usedAlg.getCode());
+        // Код(ы) алгоритма поиска в ответе, напр. "С01" или "С01, Р01" (как alg в пакете).
+        answer.getAlg().add(String.join(", ", sr.algCodes));
 
         // 4.4. СК* = записи с одинаковым IDMain. Контроль 201 — найдено более одного ЗЛ.
-        Set<Long> skStar = found.stream()
+        Set<Long> skStar = sr.found.values().stream()
                 .map(c -> c.idmain() != null ? c.idmain() : c.id())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         if (skStar.size() > 1) {
@@ -153,7 +145,7 @@ public class InsCheckService {
             return;
         }
 
-        Candidate hit = found.get(0);
+        Candidate hit = sr.found.values().iterator().next();
         List<IPerson> members = dao.findSkMembers(hit.idmain(), hit.id());
         IPerson pzsk = selectPzsk(members, date1, date2);
         if (pzsk == null) {
@@ -183,6 +175,60 @@ public class InsCheckService {
             // Год берётся по Date1 (постановка, столбец «Заполнение»: YEAR принадлежит Date1).
             fillHealthFlags(answer, pzsk.getId(), date1.getYear());
         }
+    }
+
+    /**
+     * Поиск СП по разделам Таблицы 1 (перенос checkAlg):
+     *   С01→С02→С03 — до первого найденного;
+     *   Р01 — дополняет найденную С-запись (дописывает ", Р01") либо, если С ничего не
+     *         дал, сам добавляет найденную СП (аналог MERGE из пакета) и блокирует H/В;
+     *   H01→H03, затем В01→В06 — только если СП ещё не найдена, каждый до первого.
+     */
+    private SearchResult runSearch(SearchParams sp) {
+        SearchResult r = new SearchResult();
+
+        // Раздел С: первый непустой из С01/С02/С03
+        firstHit(SECTION_C, sp, r);
+
+        // Раздел Р (Р01): дополнение уже найденной СП либо добавление своей
+        if (applicable(SearchAlgorithm.R01, sp)) {
+            List<Candidate> hits = dao.search(SearchAlgorithm.R01, sp);
+            if (!hits.isEmpty()) {
+                // matched (id уже найден в С) → дописываем Р01; not matched → добавляем запись
+                hits.forEach(c -> r.found.putIfAbsent(c.id(), c));
+                r.algCodes.add(SearchAlgorithm.R01.getCode());
+            }
+        }
+
+        // Разделы H (новый) и В — только если СП ещё не найдена
+        if (r.found.isEmpty()) {
+            firstHit(SECTION_H, sp, r);
+        }
+        if (r.found.isEmpty()) {
+            firstHit(SECTION_V, sp, r);
+        }
+        return r;
+    }
+
+    /** Выполняет алгоритмы раздела по порядку до первого непустого результата. */
+    private void firstHit(List<SearchAlgorithm> section, SearchParams sp, SearchResult r) {
+        for (SearchAlgorithm alg : section) {
+            if (!applicable(alg, sp)) {
+                continue;
+            }
+            List<Candidate> hits = dao.search(alg, sp);
+            if (!hits.isEmpty()) {
+                hits.forEach(c -> r.found.putIfAbsent(c.id(), c));
+                r.algCodes.add(alg.getCode());
+                return;
+            }
+        }
+    }
+
+    /** Результат поиска: найденные кандидаты по id и коды сработавших алгоритмов. */
+    private static final class SearchResult {
+        final LinkedHashMap<Long, Candidate> found = new LinkedHashMap<>();
+        final List<String> algCodes = new ArrayList<>();
     }
 
     /** Применимость алгоритма: если нужный реквизит отсутствует — поиск не ведётся (п.4.2.1). */
