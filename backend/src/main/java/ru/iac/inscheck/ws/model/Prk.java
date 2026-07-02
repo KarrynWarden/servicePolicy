@@ -6,7 +6,7 @@ import jakarta.xml.bind.annotation.XmlType;
 
 /** Сведения о прикреплении (тег &lt;prk&gt;). Состав полей — как в clGIPSV2_Prk. */
 @XmlAccessorType(XmlAccessType.FIELD)
-@XmlType(name = "prk", propOrder = {"mo", "modt", "podr"})
+@XmlType(name = "prk", propOrder = {"mo", "podr", "modt"})
 public class Prk {
 
     private String mo;

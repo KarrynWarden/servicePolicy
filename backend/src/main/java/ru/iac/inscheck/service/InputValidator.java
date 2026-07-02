@@ -35,28 +35,18 @@ public class InputValidator {
         this.dao = dao;
     }
 
+    /**
+     * Проверка данных (контроли 100–111, аналог пакета inscheck.checkIn).
+     * Структурные ошибки 3/4 (формат/значность/обязательность) здесь НЕ проверяются —
+     * их выполняет structuralCheck(...) до вызова этого метода.
+     */
     public Validation validate(Query q) {
         Validation v = new Validation();
         SearchParams sp = v.getParams();
 
-        // --- Обязательные поля (контроль 4, фатальный) ---
-        if (isBlank(q.getNrec()) || isBlank(q.getDate1()) || isBlank(q.getDate2())
-                || isBlank(q.getType_org()) || isBlank(q.getCode_org())) {
-            v.add(ErrCode.REQUIRED);
-        }
-        if (notBlank(q.getNrec()) && q.getNrec().length() > 32) {
-            v.add(ErrCode.FORMAT);
-        }
-
-        // --- Даты и период (контроль 100, фатальный) ---
+        // --- Даты и период (контроль 100, фатальный). Формат уже проверен структурно. ---
         LocalDate d1 = parseDate(q.getDate1());
         LocalDate d2 = parseDate(q.getDate2());
-        if (notBlank(q.getDate1()) && d1 == null) {
-            v.add(ErrCode.FORMAT);
-        }
-        if (notBlank(q.getDate2()) && d2 == null) {
-            v.add(ErrCode.FORMAT);
-        }
         if (d1 != null && d2 != null) {
             if (d1.isAfter(d2) || d2.isAfter(LocalDate.now())) {
                 v.add(ErrCode.E100);
@@ -65,24 +55,16 @@ public class InputValidator {
 
         // --- Тип организации (контроль 110) ---
         String typeOrg = trim(q.getType_org());
-        if (notBlank(typeOrg)) {
-            if (!P_NUM.matcher(typeOrg).matches() || typeOrg.length() > 1) {
-                v.add(ErrCode.FORMAT);
-            } else if (!typeOrg.matches("[123]")) {
-                v.add(ErrCode.E110);
-            }
+        if (notBlank(typeOrg) && !typeOrg.matches("[123]")) {
+            v.add(ErrCode.E110);
         }
 
-        // --- Код организации (контроль 111) ---
-        // code_org должен быть среди актуальных (dbegin..dend) кодов SpMO/SpSMO
-        // (type_org 1/2) либо = 0 для type_org=3.
+        // --- Код организации (контроль 111): code_org среди актуальных (dbegin..dend)
+        // кодов SpMO/SpSMO (type_org 1/2) либо = 0 для type_org=3. ---
         String codeOrg = trim(q.getCode_org());
-        if (notBlank(codeOrg)) {
-            if (!P_NUM.matcher(codeOrg).matches() || codeOrg.length() > 4) {
-                v.add(ErrCode.FORMAT);
-            } else if (notBlank(typeOrg) && typeOrg.matches("[123]") && !dao.orgExists(typeOrg, codeOrg)) {
-                v.add(ErrCode.E111);
-            }
+        if (notBlank(codeOrg) && notBlank(typeOrg) && typeOrg.matches("[123]")
+                && !dao.orgExists(typeOrg, codeOrg)) {
+            v.add(ErrCode.E111);
         }
 
         // --- Пол (контроль 102) ---
@@ -118,9 +100,7 @@ public class InputValidator {
         // --- СНИЛС (контроль 107) ---
         String snils = trim(q.getSnils());
         if (notBlank(snils)) {
-            if (snils.length() > 14) {
-                v.add(ErrCode.FORMAT);
-            } else if (!P_SNILS.matcher(snils).matches()) {
+            if (!P_SNILS.matcher(snils).matches()) {
                 v.add(ErrCode.E107);
             } else {
                 sp.setSnils(snils);
@@ -130,17 +110,79 @@ public class InputValidator {
         // --- ФИО (контроль 101) ---
         validateFio(q, v, sp);
 
-        // --- Место рождения (формат/значность) ---
+        // --- Место рождения ---
         String mr = trim(q.getMr());
         if (notBlank(mr)) {
-            if (mr.length() > 160) {
-                v.add(ErrCode.FORMAT);
-            } else {
-                sp.setMr(mr.toUpperCase());
-            }
+            sp.setMr(mr.toUpperCase());
         }
 
         return v;
+    }
+
+    /**
+     * Структурная проверка входа (порт GIPSV2_checkInParam из InsCheck.vb):
+     * выполняется ДО пакета, «fail-fast» — возвращает первую найденную ошибку
+     * (код 4 «не заполнено обязательное» или 3 «неверный формат/значность») с именем
+     * тега, либо null. Данные-контроли (100–111) при этом не выполняются.
+     */
+    public StructError structuralCheck(Query q) {
+        if (q == null) {
+            return new StructError(4, "nrec");
+        }
+        String nrec = nz(q.getNrec());
+        if (nrec.isEmpty()) return new StructError(4, "nrec");
+        if (nrec.length() > 32) return new StructError(3, "nrec");
+
+        String date1 = nz(q.getDate1());
+        if (date1.trim().isEmpty()) return new StructError(4, "date1");
+        if (!P_DATE.matcher(date1).find()) return new StructError(3, "date1");
+
+        String date2 = nz(q.getDate2());
+        if (date2.trim().isEmpty()) return new StructError(4, "date2");
+        if (!P_DATE.matcher(date2).find()) return new StructError(3, "date2");
+
+        String typeOrg = nz(q.getType_org());
+        if (typeOrg.isEmpty()) return new StructError(4, "type_org");
+        if (!isNum(typeOrg) || typeOrg.length() > 1) return new StructError(3, "type_org");
+
+        String codeOrg = nz(q.getCode_org());
+        if (codeOrg.isEmpty()) return new StructError(4, "code_org");
+        if (!isNum(codeOrg) || codeOrg.length() > 4) return new StructError(3, "code_org");
+
+        String dr = nz(q.getDr());
+        if (!dr.trim().isEmpty() && !P_DATE.matcher(dr).find()) return new StructError(3, "dr");
+
+        String w = nz(q.getW());
+        if (!w.isEmpty() && (!isNum(w) || w.length() > 1)) return new StructError(3, "w");
+
+        String vpolis = nz(q.getVpolis());
+        if (!vpolis.isEmpty() && (!isNum(vpolis) || vpolis.length() > 1)) return new StructError(3, "vpolis");
+
+        String npolis = nz(q.getNpolis());
+        if (!npolis.isEmpty() && (!isNum(npolis) || npolis.length() > 16)) return new StructError(3, "npolis");
+
+        String doctype = nz(q.getDoctype());
+        if (!doctype.isEmpty() && (!isNum(doctype) || doctype.length() > 16)) return new StructError(3, "doctype");
+
+        if (nz(q.getFam()).length() > 40) return new StructError(3, "fam");
+        if (nz(q.getIm()).length() > 40) return new StructError(3, "im");
+        if (nz(q.getOt()).length() > 40) return new StructError(3, "ot");
+        if (nz(q.getDocser()).length() > 10) return new StructError(3, "docser");
+        if (nz(q.getDocnum()).length() > 20) return new StructError(3, "docnum");
+        if (nz(q.getSnils()).length() > 14) return new StructError(3, "snils");
+        if (nz(q.getMr()).length() > 160) return new StructError(3, "mr");
+
+        return null;
+    }
+
+    /** Структурная ошибка входа: код (3/4) и имя тега; текст — как в старом сервисе. */
+    public record StructError(int code, String tag) {
+        public String text() {
+            String prefix = code == 3
+                    ? "Неверный формат или значность реквизита: "
+                    : "Не все обязательные поля заполнены: ";
+            return prefix + tag;
+        }
     }
 
     private void validatePolis(Query q, Validation v, SearchParams sp) {
@@ -178,12 +220,6 @@ public class InputValidator {
         if (!anyFilled) {
             return;
         }
-        if (notBlank(docser) && docser.length() > 10) {
-            v.add(ErrCode.FORMAT);
-        }
-        if (notBlank(docnum) && docnum.length() > 20) {
-            v.add(ErrCode.FORMAT);
-        }
         // контроль 106: при заполнении документа обязательны Doctype и Docnum,
         // Doctype должен быть числом из справочника SPDOCPER.
         boolean ok = notBlank(doctype) && notBlank(docnum)
@@ -202,10 +238,6 @@ public class InputValidator {
         String fam = upperOrNull(q.getFam());
         String im = upperOrNull(q.getIm());
         String ot = upperOrNull(q.getOt());
-
-        if (len(fam) > 40 || len(im) > 40 || len(ot) > 40) {
-            v.add(ErrCode.FORMAT);
-        }
 
         boolean badChars = !fioOk(fam) || !fioOk(im) || !fioOk(ot);
 
@@ -237,7 +269,8 @@ public class InputValidator {
     private static boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
     private static boolean notBlank(String s) { return !isBlank(s); }
     private static String trim(String s) { return s == null ? null : s.trim(); }
-    private static int len(String s) { return s == null ? 0 : s.length(); }
+    private static String nz(String s) { return s == null ? "" : s; }
+    private static boolean isNum(String s) { return s.matches("[0-9]*"); }
 
     private static String upperOrNull(String s) {
         String t = trim(s);

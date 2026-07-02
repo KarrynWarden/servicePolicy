@@ -68,18 +68,29 @@ public class InsCheckService {
 
     @Transactional
     public Answer getInsPrkState(Query q, RequestContext ctx) {
+        // Структурная проверка входа (порт GIPSV2_checkInParam): до пакета, fail-fast.
+        // На структурной ошибке старый сервис возвращает единственный <err> (код 3/4)
+        // без nrec/ack/ins/prk и БЕЗ записи в журнал.
+        InputValidator.StructError se = validator.structuralCheck(q);
+        if (se != null) {
+            Answer bad = new Answer();
+            bad.getErr().add(new Err(String.valueOf(se.code()), se.text()));
+            return bad;
+        }
+
         Answer answer = new Answer();
-        answer.setNrec(q == null ? null : q.getNrec());
+        answer.setNrec(q.getNrec());
 
         Set<ErrCode> errors = new LinkedHashSet<>();
         try {
-            // 2. Проверка входных данных
+            // 2. Проверка данных (контроли 100–111, аналог inscheck.checkIn)
             Validation validation = validator.validate(q);
             errors.addAll(validation.getErrors());
             SearchParams sp = validation.getParams();
 
-            // 3.2. Счётчик/лимит запросов (контроль 5)
-            checkAndCountLimit(ctx.getRemoteIp(), errors);
+            // Контроль 5 (дневной лимит запросов) в старом сервисе НЕ реализован
+            // (таблица InscheckLimit не используется) — отключён для совпадения поведения.
+            // checkAndCountLimit(ctx.getRemoteIp(), errors);
 
             // 108. Номер полиса отсутствует в Регистре (проверка по данным)
             if (sp.hasPolis() && !dao.npolisExists(sp.getVpolis(), sp.getNpolis())) {
@@ -92,11 +103,11 @@ public class InsCheckService {
                 processSearch(q, sp, answer, errors);
             }
         } catch (RuntimeException e) {
-            // Аналог общего catch в старом коде: код 2 — структура/непредвиденная ошибка
+            // Аналог общего catch в старом коде: код 2 — непредвиденная ошибка
             errors.add(ErrCode.STRUCT);
         }
 
-        // 3.1. Журнал операций (регистрируется всегда)
+        // 3.1. Журнал операций (как в старом сервисе — при нормальном потоке)
         writeLog(q, ctx, errors);
 
         fillErrors(answer, errors);
@@ -133,8 +144,12 @@ public class InsCheckService {
             errors.add(ErrCode.E200); // СП не найдена
             return;
         }
-        // Код(ы) алгоритма поиска в ответе, напр. "С01" или "С01, Р01" (как alg в пакете).
-        answer.getAlg().add(String.join(", ", sr.algCodes));
+        // Код(ы) алгоритма в ответе. Старый сервис отдаёт alg НЕСКОЛЬКИМИ тегами <alg>,
+        // разбивая строку ls_alg по запятой (напр. "С01, Р01" → "С01" и " Р01").
+        String algJoined = String.join(", ", sr.algCodes);
+        for (String part : algJoined.split(",")) {
+            answer.getAlg().add(part);
+        }
 
         // 4.4. СК* = записи с одинаковым IDMain. Контроль 201 — найдено более одного ЗЛ.
         Set<Long> skStar = sr.found.values().stream()
@@ -159,6 +174,11 @@ public class InsCheckService {
         // Раздел 3 Таблицы 4: соответствие данных Регистру (202–208)
         checkRegisterMatch(sp, pzsk, errors);
 
+        // Признаки диспансеризации заполняются при определении СП (строка RES есть),
+        // независимо от актуальности — как в старом сервисе. Год берётся по Date1
+        // (постановка, столбец «Заполнение»: YEAR принадлежит Date1).
+        fillHealthFlags(answer, pzsk.getId(), date1.getYear());
+
         // Раздел 4 Таблицы 4: особенности найденной СП (300–305)
         boolean actual = isActual(pzsk, date1, date2);
         if (!actual) {
@@ -171,9 +191,6 @@ public class InsCheckService {
             } else {
                 answer.getPrk().add(buildPrk(prk));
             }
-            // Признаки диспансеризации заполняются только при определении СП.
-            // Год берётся по Date1 (постановка, столбец «Заполнение»: YEAR принадлежит Date1).
-            fillHealthFlags(answer, pzsk.getId(), date1.getYear());
         }
     }
 
@@ -335,10 +352,12 @@ public class InsCheckService {
     // ===== Признаки диспансеризации (p_disp/p_proph/p_healthc) =====
 
     private void fillHealthFlags(Answer answer, long personId, int year) {
-        // MEDREE_PRDISP.groupcode: 1 — диспансеризация, 2 — профосмотр, 3 — Центр здоровья.
-        answer.setP_disp(yesNo(dao.hasDisp(personId, 1, year)));
-        answer.setP_proph(yesNo(dao.hasDisp(personId, 2, year)));
-        answer.setP_healthc(yesNo(dao.hasDisp(personId, 3, year)));
+        // Старый сервис отдаёт p_disp/p_proph/p_healthc как "0"/"1" (сырое значение
+        // BUFF_INSCHECK_RES), НЕ "Да"/"Нет" (постановка расходится с реализацией —
+        // ориентир на старый сервис). MEDREE_PRDISP.groupcode: 1 — дисп., 2 — проф., 3 — ЦЗ.
+        answer.setP_disp(flag01(dao.hasDisp(personId, 1, year)));
+        answer.setP_proph(flag01(dao.hasDisp(personId, 2, year)));
+        answer.setP_healthc(flag01(dao.hasDisp(personId, 3, year)));
     }
 
     // ===== Сборка элементов ответа =====
@@ -463,8 +482,8 @@ public class InsCheckService {
         return d == null ? null : d.format(ISO);
     }
 
-    private static String yesNo(boolean b) {
-        return b ? "Да" : "Нет";
+    private static String flag01(boolean b) {
+        return b ? "1" : "0";
     }
 
     private static void append(StringBuilder sb, String tag, String value) {

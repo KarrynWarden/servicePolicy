@@ -85,11 +85,12 @@
         </xs:sequence>
     </xs:complexType>
 
+    <!-- Порядок полей как в старом сервисе (clGIPSV2_Prk): mo, podr, modt. -->
     <xs:complexType name="prk">
         <xs:sequence>
             <xs:element name="mo" type="xs:string" minOccurs="0"/>
-            <xs:element name="modt" type="xs:string" minOccurs="0"/>
             <xs:element name="podr" type="xs:string" minOccurs="0"/>
+            <xs:element name="modt" type="xs:string" minOccurs="0"/>
         </xs:sequence>
     </xs:complexType>
 
