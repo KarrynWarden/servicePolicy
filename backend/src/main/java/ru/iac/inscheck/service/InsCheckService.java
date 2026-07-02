@@ -66,18 +66,13 @@ public class InsCheckService {
         this.limitDao = limitDao;
     }
 
+    /**
+     * Основной DB-поток (аналог транзакции в старом сервисе после GIPSV2_checkInParam).
+     * Структурная проверка входа выполняется РАНЬШЕ, в контроллере (до открытия
+     * транзакции) — поэтому здесь вход уже структурно корректен.
+     */
     @Transactional
     public Answer getInsPrkState(Query q, RequestContext ctx) {
-        // Структурная проверка входа (порт GIPSV2_checkInParam): до пакета, fail-fast.
-        // На структурной ошибке старый сервис возвращает единственный <err> (код 3/4)
-        // без nrec/ack/ins/prk и БЕЗ записи в журнал.
-        InputValidator.StructError se = validator.structuralCheck(q);
-        if (se != null) {
-            Answer bad = new Answer();
-            bad.getErr().add(new Err(String.valueOf(se.code()), se.text()));
-            return bad;
-        }
-
         Answer answer = new Answer();
         answer.setNrec(q.getNrec());
 

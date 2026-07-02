@@ -9,11 +9,14 @@ import org.springframework.ws.server.endpoint.annotation.ResponsePayload;
 import org.springframework.ws.transport.context.TransportContext;
 import org.springframework.ws.transport.context.TransportContextHolder;
 import org.springframework.ws.transport.http.HttpServletConnection;
+import ru.iac.inscheck.service.InputValidator;
 import ru.iac.inscheck.service.InsCheckService;
 import ru.iac.inscheck.service.RequestContext;
 import ru.iac.inscheck.ws.model.Answer;
+import ru.iac.inscheck.ws.model.Err;
 import ru.iac.inscheck.ws.model.GetInsPrkStateRequest;
 import ru.iac.inscheck.ws.model.GetInsPrkStateResponse;
+import ru.iac.inscheck.ws.model.Query;
 
 /**
  * Слой контроллера (SOAP-эндпоинт). Принимает запрос GetInsPrkState,
@@ -28,17 +31,30 @@ public class InsCheckEndpoint {
     private static final String NAMESPACE = "http://tempuri.org/";
 
     private final InsCheckService service;
+    private final InputValidator validator;
 
-    public InsCheckEndpoint(InsCheckService service) {
+    public InsCheckEndpoint(InsCheckService service, InputValidator validator) {
         this.service = service;
+        this.validator = validator;
     }
 
     @PayloadRoot(namespace = NAMESPACE, localPart = "GetInsPrkState")
     @ResponsePayload
     public GetInsPrkStateResponse getInsPrkState(@RequestPayload GetInsPrkStateRequest request,
                                                  MessageContext messageContext) {
-        RequestContext ctx = buildRequestContext();
-        Answer answer = service.getInsPrkState(request.getQuery(), ctx);
+        Query q = request.getQuery();
+
+        // Структурная проверка входа (порт GIPSV2_checkInParam) выполняется ДО обращения
+        // к БД/транзакции — как в старом сервисе. При ошибке — единственный <err> (код 3/4)
+        // без nrec/ack/ins/prk, БД не затрагивается.
+        Answer answer;
+        InputValidator.StructError se = validator.structuralCheck(q);
+        if (se != null) {
+            answer = new Answer();
+            answer.getErr().add(new Err(String.valueOf(se.code()), se.text()));
+        } else {
+            answer = service.getInsPrkState(q, buildRequestContext());
+        }
 
         GetInsPrkStateResponse response = new GetInsPrkStateResponse();
         response.setAnswer(answer);
