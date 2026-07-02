@@ -35,16 +35,17 @@ public class InsCheckDao {
 
     // ===== Справочные проверки =====
 
-    // Контроль 111 (наличие организации в справочнике) временно отключён:
-    // в пакете он идёт по таблице ias4user(typecont, cont), которой на PostgreSQL
-    // пока нет. Восстановить вместе с ref/org_check.sql, когда таблица появится.
-    // public boolean orgExists(String typeOrg, String codeOrg) {
-    //     MapSqlParameterSource p = new MapSqlParameterSource()
-    //             .addValue("type_org", typeOrg)
-    //             .addValue("code_org", codeOrg);
-    //     Integer cnt = jdbc.queryForObject(sql.getSql("ref/org_check.sql"), p, Integer.class);
-    //     return cnt != null && cnt > 0;
-    // }
+    /**
+     * Контроль 111: код организации присутствует среди актуальных (dbegin..dend) кодов
+     * SpMO (type_org=1) / SpSMO (type_org=2), либо = 0 для type_org=3.
+     */
+    public boolean orgExists(String typeOrg, String codeOrg) {
+        MapSqlParameterSource p = new MapSqlParameterSource()
+                .addValue("type_org", typeOrg)
+                .addValue("code_org", codeOrg);
+        Integer cnt = jdbc.queryForObject(sql.getSql("ref/org_check.sql"), p, Integer.class);
+        return cnt != null && cnt > 0;
+    }
 
     /** Проверка типа документа по справочнику SPDOCPER (ошибка 106). */
     public boolean docTypeExists(Integer doctype) {

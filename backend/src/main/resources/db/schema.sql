@@ -136,6 +136,10 @@ create index if not exists ix_medree_prdisp on medree_prdisp (id, year, groupcod
 -- ---------------------------------------------------------------------
 -- Справочники
 -- ---------------------------------------------------------------------
-create table if not exists spmo    (code integer primary key);   -- МО
-create table if not exists spsmo   (code integer primary key);   -- СМО
-create table if not exists spdocper(code integer primary key);   -- типы документов
+-- SpMO/SpSMO: коды с периодом актуальности (dbegin..dend) — контроль 111.
+create table if not exists spmo  (code integer, dbegin date, dend date);   -- МО
+create table if not exists spsmo (code integer, dbegin date, dend date);   -- СМО
+create index if not exists ix_spmo_code  on spmo  (code);
+create index if not exists ix_spsmo_code on spsmo (code);
+
+create table if not exists spdocper(code integer primary key);   -- типы документов (контроль 106)

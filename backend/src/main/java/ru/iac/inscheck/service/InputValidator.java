@@ -73,18 +73,16 @@ public class InputValidator {
             }
         }
 
-        // --- Код организации ---
+        // --- Код организации (контроль 111) ---
+        // code_org должен быть среди актуальных (dbegin..dend) кодов SpMO/SpSMO
+        // (type_org 1/2) либо = 0 для type_org=3.
         String codeOrg = trim(q.getCode_org());
         if (notBlank(codeOrg)) {
             if (!P_NUM.matcher(codeOrg).matches() || codeOrg.length() > 4) {
                 v.add(ErrCode.FORMAT);
+            } else if (notBlank(typeOrg) && typeOrg.matches("[123]") && !dao.orgExists(typeOrg, codeOrg)) {
+                v.add(ErrCode.E111);
             }
-            // Контроль 111 (наличие организации в справочнике) временно отключён:
-            // в пакете он идёт по таблице ias4user(typecont, cont), которой на
-            // PostgreSQL пока нет (ожидается решение начальства по её созданию).
-            // else if (notBlank(typeOrg) && typeOrg.matches("[123]") && !dao.orgExists(typeOrg, codeOrg)) {
-            //     v.add(ErrCode.E111);
-            // }
         }
 
         // --- Пол (контроль 102) ---
