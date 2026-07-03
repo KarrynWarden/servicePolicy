@@ -2,9 +2,13 @@ spring:
   application:
     name: inscheck
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/inscheck}
-    username: ${DB_USER:inscheck}
-    password: ${DB_PASSWORD:inscheck}
+    # Подключение к БД. Таблицы УЖЕ существуют — приложение их не создаёт и не меняет
+    # (JPA/ddl-auto нет, schema.sql автоматически не выполняется).
+    # Впиши имя базы (ИМЯ_БАЗЫ), при необходимости порт, логин и пароль.
+    # Любое значение можно переопределить переменной окружения (DB_URL/DB_USER/DB_PASSWORD).
+    url: ${DB_URL:jdbc:postgresql://10.0.15.33:5432/ИМЯ_БАЗЫ}
+    username: ${DB_USER:ЛОГИН}
+    password: ${DB_PASSWORD:ПАРОЛЬ}
     driver-class-name: org.postgresql.Driver
     hikari:
       # Соединение не создаётся при старте — только при первом запросе к БД.
