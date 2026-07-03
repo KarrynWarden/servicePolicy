@@ -204,6 +204,15 @@ public class InsCheckService {
             IPrkDept prk = dao.findPrk(pzsk.getId(), date1, date2);
             if (prk == null) {
                 errors.add(ErrCode.E305);
+                // Диагностика 305: показать все строки iprkdept по этому id (без фильтра дат).
+                if (log.isDebugEnabled()) {
+                    List<IPrkDept> all = dao.findAllPrk(pzsk.getId());
+                    log.debug("305: прикрепления по id={} (всего {}):", pzsk.getId(), all.size());
+                    for (IPrkDept d : all) {
+                        log.debug("  iprkdept: id={} dbeg={} dend={} typeprk={} mo={}",
+                                d.getId(), d.getDbeg(), d.getDend(), d.getTypeprk(), d.getMo());
+                    }
+                }
             } else {
                 answer.getPrk().add(buildPrk(prk));
             }
@@ -386,8 +395,8 @@ public class InsCheckService {
         // npolis = ЕНП при vpolis=3, иначе номер полиса
         // (decode(vpolis,3,fpolis,null), decode(vpolis,3,enp,npolis)).
         boolean enp = p.getVpolis() != null && p.getVpolis() == 3;
-        ins.setFpolis(enp ? str(p.getFpolis()) : null);
-        ins.setNpolis(enp ? p.getEnp() : p.getNpolis());
+        ins.setFpolis(enp ? str(p.getFpolis()) : "");
+        ins.setNpolis(nz(enp ? p.getEnp() : p.getNpolis()));
         ins.setDvisit(date(p.getDvizit()));
         ins.setDbeg(date(p.getDbeg()));
         ins.setDend(date(p.getDend()));
@@ -490,12 +499,18 @@ public class InsCheckService {
         return Objects.equals(a, b);
     }
 
+    // Старый сервис (VB dr("x").ToString) выводит теги ins/prk всегда — пустыми при null.
+    // Поэтому в сборке ответа null превращаем в "" (JAXB отдаст <tag/>).
     private static String str(Integer v) {
-        return v == null ? null : String.valueOf(v);
+        return v == null ? "" : String.valueOf(v);
     }
 
     private static String date(LocalDate d) {
-        return d == null ? null : d.format(ISO);
+        return d == null ? "" : d.format(ISO);
+    }
+
+    private static String nz(String s) {
+        return s == null ? "" : s;
     }
 
     private static String flag01(boolean b) {

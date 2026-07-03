@@ -130,6 +130,12 @@ public class InsCheckDao {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /** Диагностика: все строки IPRKDEPT по id (без фильтра дат) — для отладки контроля 305. */
+    public List<IPrkDept> findAllPrk(long personId) {
+        return jdbc.query(sql.getSql("res/prk_debug_sel.sql"),
+                new MapSqlParameterSource("id", personId), PRK_MAPPER);
+    }
+
     /**
      * Сходство мест рождения по jaro_winkler (контроль 208). Возвращает значение 0..1,
      * как Oracle utl_match.jaro_winkler(upper(mr1), upper(mr2)). Сравнивается с порогом 0.8.
