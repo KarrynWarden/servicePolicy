@@ -1,5 +1,7 @@
 package ru.iac.inscheck.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.iac.inscheck.dao.InsCheckDao;
@@ -37,6 +39,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class InsCheckService {
+
+    private static final Logger log = LoggerFactory.getLogger(InsCheckService.class);
 
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final String IP_TFOMS = "10.0.14.46";
@@ -98,7 +102,9 @@ public class InsCheckService {
                 processSearch(q, sp, answer, errors);
             }
         } catch (RuntimeException e) {
-            // Аналог общего catch в старом коде: код 2 — непредвиденная ошибка
+            // Аналог общего catch в старом коде: код 2 — непредвиденная ошибка.
+            // Логируем причину (обычно SQL/схема) — иначе errcode 2 ничего не объясняет.
+            log.error("Ошибка обработки GetInsPrkState (nrec={}): {}", q.getNrec(), e.toString(), e);
             errors.add(ErrCode.STRUCT);
         }
 
