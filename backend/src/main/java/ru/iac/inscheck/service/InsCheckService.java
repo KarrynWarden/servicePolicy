@@ -164,6 +164,21 @@ public class InsCheckService {
         Candidate hit = sr.found.values().iterator().next();
         List<IPerson> members = dao.findSkMembers(hit.idmain(), hit.id());
         IPerson pzsk = selectPzsk(members, date1, date2);
+
+        // Диагностика поиска СП/ПЗСК (включается logging.level.ru.iac.inscheck=DEBUG).
+        if (log.isDebugEnabled()) {
+            log.debug("nrec={} alg={} кандидаты={} членов_СК={}",
+                    q.getNrec(), sr.algCodes,
+                    sr.found.values().stream().map(c -> c.id() + "/" + c.idmain()).toList(),
+                    members.size());
+            for (IPerson m : members) {
+                log.debug("  член СК: id={} idmain={} dbeg={} dvizit={} dend={} reason={} vpolis={} smo={}",
+                        m.getId(), m.getIdmain(), m.getDbeg(), m.getDvizit(), m.getDend(),
+                        m.getReason(), m.getVpolis(), m.getSmo());
+            }
+            log.debug("  выбрана ПЗСК: id={}", pzsk == null ? null : pzsk.getId());
+        }
+
         if (pzsk == null) {
             errors.add(ErrCode.E200);
             return;

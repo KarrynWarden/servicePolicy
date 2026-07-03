@@ -17,5 +17,11 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+# На время отладки — трассировка поиска СП/ПЗСК (кандидаты, состав СК*, выбор ПЗСК).
+# Убрать (или поставить INFO), когда сверка со старым сервисом завершится.
+logging:
+  level:
+    ru.iac.inscheck: DEBUG
+
 # WSDL доступен по адресу: http://<host>:<port>/ws/inscheck.wsdl
 # Эндпоинт SOAP: http://<host>:<port>/ws
