@@ -83,7 +83,7 @@ public class InsCheckDao {
     /** Выполняет один алгоритм поиска (Таблица 1 / раздел H). Возвращает найденные СК. */
     public List<Candidate> search(SearchAlgorithm algorithm, SearchParams sp) {
         return jdbc.query(sql.getSql(algorithm.getSqlFile()), searchParams(sp),
-                (rs, n) -> new Candidate(rs.getLong("id"), (Long) rs.getObject("idmain")));
+                (rs, n) -> new Candidate(rs.getLong("id"), longOrNull(rs, "idmain")));
     }
 
     private MapSqlParameterSource searchParams(SearchParams sp) {
@@ -160,24 +160,24 @@ public class InsCheckDao {
     private static final RowMapper<IPerson> PERSON_MAPPER = (rs, n) -> {
         IPerson p = new IPerson();
         p.setId(rs.getLong("id"));
-        p.setIdrow((Long) rs.getObject("idrow"));
-        p.setIdmain((Long) rs.getObject("idmain"));
-        p.setSmo((Integer) rs.getObject("smo"));
-        p.setVpolis((Integer) rs.getObject("vpolis"));
-        p.setFpolis((Integer) rs.getObject("fpolis"));
+        p.setIdrow(longOrNull(rs, "idrow"));
+        p.setIdmain(longOrNull(rs, "idmain"));
+        p.setSmo(intOrNull(rs, "smo"));
+        p.setVpolis(intOrNull(rs, "vpolis"));
+        p.setFpolis(intOrNull(rs, "fpolis"));
         p.setNpolis(rs.getString("npolis"));
         p.setEnp(rs.getString("enp"));
         p.setFam(rs.getString("fam"));
         p.setIm(rs.getString("im"));
         p.setOt(rs.getString("ot"));
-        p.setW((Integer) rs.getObject("w"));
+        p.setW(intOrNull(rs, "w"));
         p.setDr(getDate(rs, "dr"));
         p.setMr(rs.getString("mr"));
         p.setSs(rs.getString("ss"));
         p.setDvizit(getDate(rs, "dvizit"));
         p.setDbeg(getDate(rs, "dbeg"));
         p.setDend(getDate(rs, "dend"));
-        p.setReason((Integer) rs.getObject("reason"));
+        p.setReason(intOrNull(rs, "reason"));
         p.setDdeath(getDate(rs, "ddeath"));
         return p;
     };
@@ -187,16 +187,27 @@ public class InsCheckDao {
         p.setId(rs.getLong("id"));
         p.setDbeg(getDate(rs, "dbeg"));
         p.setDend(getDate(rs, "dend"));
-        p.setTypeprk((Integer) rs.getObject("typeprk"));
-        p.setMo((Integer) rs.getObject("mo"));
+        p.setTypeprk(intOrNull(rs, "typeprk"));
+        p.setMo(intOrNull(rs, "mo"));
         p.setOtdel(rs.getString("otdel"));
-        p.setDept((Integer) rs.getObject("dept"));
-        p.setSubdept((Integer) rs.getObject("subdept"));
+        p.setDept(intOrNull(rs, "dept"));
+        p.setSubdept(intOrNull(rs, "subdept"));
         return p;
     };
 
     private static LocalDate getDate(ResultSet rs, String col) throws SQLException {
         java.sql.Date d = rs.getDate(col);
         return d == null ? null : d.toLocalDate();
+    }
+
+    /** Числовые колонки БД (в т.ч. numeric/BigDecimal) читаем через Number — null-безопасно. */
+    private static Long longOrNull(ResultSet rs, String col) throws SQLException {
+        Object o = rs.getObject(col);
+        return o == null ? null : ((Number) o).longValue();
+    }
+
+    private static Integer intOrNull(ResultSet rs, String col) throws SQLException {
+        Object o = rs.getObject(col);
+        return o == null ? null : ((Number) o).intValue();
     }
 }
