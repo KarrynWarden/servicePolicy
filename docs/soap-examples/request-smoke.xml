@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Дымовой тест: nrec пустой -> структурная ошибка 4. Работает БЕЗ базы данных
+     (структурная проверка идёт до обращения к БД). Удобно проверить, что сервис жив. -->
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <GetInsPrkState xmlns="http://tempuri.org/">
+      <query>
+        <nrec></nrec>
+        <date1>2020-01-01</date1>
+        <date2>2020-01-01</date2>
+        <type_org>1</type_org>
+        <code_org>122</code_org>
+      </query>
+    </GetInsPrkState>
+  </soap:Body>
+</soap:Envelope>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <GetInsPrkState xmlns="http://tempuri.org/">
+      <query>
+        <nrec>6846542165498724</nrec>
+        <date1>2017-02-01</date1>
+        <date2>2017-02-01</date2>
+        <type_org>1</type_org>
+        <code_org>122</code_org>
+        <fam>Иванов</fam>
+        <im>Иван</im>
+        <ot>Иванович</ot>
+        <w>1</w>
+        <dr>1993-01-10</dr>
+        <vpolis></vpolis>
+        <npolis></npolis>
+        <doctype>14</doctype>
+        <docser>00 01</docser>
+        <docnum>123456</docnum>
+        <snils>123-456-789 12</snils>
+        <mr/>
+      </query>
+    </GetInsPrkState>
+  </soap:Body>
+</soap:Envelope>
