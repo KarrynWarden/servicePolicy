@@ -17,6 +17,7 @@ create extension if not exists fuzzystrmatch;
 -- ---------------------------------------------------------------------
 create table if not exists iperson (
     id        bigint primary key,
+    idrow     bigint,                 -- идентификатор строки (связь с IDOC.idrow)
     idmain    bigint,                 -- группировка записей в СК* (п.4.4)
     smo       integer,                -- код СМО
     vpolis    integer,                -- тип полиса (1,2,3)
@@ -32,9 +33,7 @@ create table if not exists iperson (
     meta_fam  varchar(40),            -- метафон фамилии (созвучное)
     meta_im   varchar(40),
     meta_ot   varchar(40),
-    doctype   integer,
-    docser    varchar(10),
-    docnum    varchar(20),
+    -- Документы (doctype/docser/docnum) вынесены в таблицу IDOC (связь по idrow).
     ss        varchar(14),            -- СНИЛС
     dvizit    date,                   -- дата заявления
     dbeg      date,                   -- дата начала финансирования
@@ -52,6 +51,20 @@ create index if not exists ix_iperson_polis    on iperson (vpolis, npolis);
 create index if not exists ix_iperson_enp      on iperson (enp);
 create index if not exists ix_iperson_ss       on iperson (ss);
 create index if not exists ix_iperson_idmain   on iperson (idmain);
+create index if not exists ix_iperson_idrow    on iperson (idrow);
+
+-- ---------------------------------------------------------------------
+-- Документы ЗЛ (IDOC). Связь с iperson по IDROW; для поиска/сверки берутся
+-- строки с TYPEROW in (1,2). Контроли: поиск по документу (С02/H02/В02) и 206.
+-- ---------------------------------------------------------------------
+create table if not exists idoc (
+    idrow    bigint,                  -- связь с iperson.idrow
+    typerow  integer,                 -- тип строки документа (берутся 1 и 2)
+    doctype  integer,
+    docser   varchar(10),
+    docnum   varchar(20)
+);
+create index if not exists ix_idoc_idrow on idoc (idrow);
 
 -- ---------------------------------------------------------------------
 -- Прикрепление ЗЛ (IPRKDEPT). Полная структура по постановке (PG.IPRKDEPT).

@@ -316,8 +316,8 @@ public class InsCheckService {
         if (sp.hasPolis() && !(eqInt(sp.getVpolis(), p.getVpolis()) && eq(sp.getNpolis(), p.getNpolis()))) {
             errors.add(ErrCode.E205);
         }
-        if (sp.hasDoc() && !(eqInt(sp.getDoctype(), p.getDoctype())
-                && eq(sp.getDocser(), p.getDocser()) && eq(sp.getDocnum(), p.getDocnum()))) {
+        // 206: документ ЗЛ — в IDOC (связь по IDROW, TYPEROW in (1,2)), не в iperson.
+        if (sp.hasDoc() && !dao.docMatches(p.getIdrow(), sp.getDoctype(), sp.getDocser(), sp.getDocnum())) {
             errors.add(ErrCode.E206);
         }
         if (sp.hasSnils() && !eq(sp.getSnils(), p.getSs())) {

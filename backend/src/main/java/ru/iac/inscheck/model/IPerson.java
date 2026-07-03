@@ -10,6 +10,7 @@ import java.time.LocalDate;
 public class IPerson {
 
     private long id;
+    private Long idrow;      // идентификатор строки (связь с Idoc.idrow — документы ЗЛ)
     private Long idmain;
     private Integer smo;
     private Integer vpolis;
@@ -24,9 +25,6 @@ public class IPerson {
     private LocalDate dr;
     private String mr;
 
-    private Integer doctype;
-    private String docser;
-    private String docnum;
     private String ss;
 
     private LocalDate dvizit;
@@ -37,6 +35,9 @@ public class IPerson {
 
     public long getId() { return id; }
     public void setId(long id) { this.id = id; }
+
+    public Long getIdrow() { return idrow; }
+    public void setIdrow(Long idrow) { this.idrow = idrow; }
 
     public Long getIdmain() { return idmain; }
     public void setIdmain(Long idmain) { this.idmain = idmain; }
@@ -73,15 +74,6 @@ public class IPerson {
 
     public String getMr() { return mr; }
     public void setMr(String mr) { this.mr = mr; }
-
-    public Integer getDoctype() { return doctype; }
-    public void setDoctype(Integer doctype) { this.doctype = doctype; }
-
-    public String getDocser() { return docser; }
-    public void setDocser(String docser) { this.docser = docser; }
-
-    public String getDocnum() { return docnum; }
-    public void setDocnum(String docnum) { this.docnum = docnum; }
 
     public String getSs() { return ss; }
     public void setSs(String ss) { this.ss = ss; }

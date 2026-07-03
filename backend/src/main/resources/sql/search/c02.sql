@@ -1,12 +1,14 @@
 -- С02: схожее(ФИО) + (Др или схожее(Мр)) + Документ.
--- Условия в разных записях одного ЗЛ (a.id=b.id=c.id): Документ на a, ФИО на b, Др/Мр на c.
+-- Документ хранится в IDOC (связь по IDROW, TYPEROW in (1,2)) — на iperson поля
+-- doctype/docser/docnum отсутствуют. Условия в разных записях одного ЗЛ (a.id=b.id=c.id).
 select a.id as id, max(a.idmain) as idmain
 from iperson a
+join idoc da on da.idrow = a.idrow and da.typerow in (1, 2)
 join iperson b on b.id = a.id
 join iperson c on c.id = a.id
-where a.doctype = :doctype
-  and a.docser = :docser
-  and a.docnum = :docnum
+where da.doctype = :doctype
+  and da.docser = :docser
+  and da.docnum = :docnum
   and jarowinkler(b.fam, :fam) >= :sim
   and jarowinkler(b.im,  :im)  >= :sim
   and jarowinkler(b.ot,  :ot)  >= :sim

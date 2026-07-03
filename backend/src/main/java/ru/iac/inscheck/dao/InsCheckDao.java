@@ -54,6 +54,21 @@ public class InsCheckDao {
         return cnt != null && cnt > 0;
     }
 
+    /**
+     * Контроль 206: документ ПЗСК* соответствует запросу. Документы ЗЛ хранятся в IDOC
+     * (связь по IDROW, TYPEROW in (1,2)) — на iperson полей документа нет.
+     * true, если у записи есть документ с совпадающими doctype/docser/docnum.
+     */
+    public boolean docMatches(Long idrow, Integer doctype, String docser, String docnum) {
+        MapSqlParameterSource p = new MapSqlParameterSource()
+                .addValue("idrow", idrow)
+                .addValue("doctype", doctype)
+                .addValue("docser", docser)
+                .addValue("docnum", docnum);
+        Integer cnt = jdbc.queryForObject(sql.getSql("ref/idoc_check.sql"), p, Integer.class);
+        return cnt != null && cnt > 0;
+    }
+
     /** Наличие номера полиса в Регистре (ошибка 108). */
     public boolean npolisExists(Integer vpolis, String npolis) {
         MapSqlParameterSource p = new MapSqlParameterSource()
@@ -145,6 +160,7 @@ public class InsCheckDao {
     private static final RowMapper<IPerson> PERSON_MAPPER = (rs, n) -> {
         IPerson p = new IPerson();
         p.setId(rs.getLong("id"));
+        p.setIdrow((Long) rs.getObject("idrow"));
         p.setIdmain((Long) rs.getObject("idmain"));
         p.setSmo((Integer) rs.getObject("smo"));
         p.setVpolis((Integer) rs.getObject("vpolis"));
@@ -157,9 +173,6 @@ public class InsCheckDao {
         p.setW((Integer) rs.getObject("w"));
         p.setDr(getDate(rs, "dr"));
         p.setMr(rs.getString("mr"));
-        p.setDoctype((Integer) rs.getObject("doctype"));
-        p.setDocser(rs.getString("docser"));
-        p.setDocnum(rs.getString("docnum"));
         p.setSs(rs.getString("ss"));
         p.setDvizit(getDate(rs, "dvizit"));
         p.setDbeg(getDate(rs, "dbeg"));
