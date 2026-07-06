@@ -7,9 +7,12 @@
  */
 @XmlSchema(
         namespace = "http://tempuri.org/",
-        elementFormDefault = XmlNsForm.QUALIFIED
+        elementFormDefault = XmlNsForm.QUALIFIED,
+        // Пустой префикс — namespace по умолчанию (как в старом сервисе): теги без ns2.
+        xmlns = { @XmlNs(prefix = "", namespaceURI = "http://tempuri.org/") }
 )
 package ru.iac.inscheck.ws.model;
 
+import jakarta.xml.bind.annotation.XmlNs;
 import jakarta.xml.bind.annotation.XmlNsForm;
 import jakarta.xml.bind.annotation.XmlSchema;
