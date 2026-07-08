@@ -73,12 +73,21 @@ def build_envelope(row):
 
 
 def post(url, body, timeout):
+    """Возвращает (status, text). На HTTP-ошибке НЕ падает — тело читаем (там SOAP Fault)."""
     data = body.encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST")
     req.add_header("Content-Type", "text/xml; charset=utf-8")
     req.add_header("SOAPAction", '"http://tempuri.org/GetInsPrkState"')
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8", "replace")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return getattr(resp, "status", 200), resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        # SOAP 1.1 отдаёт Fault со статусом 500 — тело важно, читаем его.
+        try:
+            body_txt = e.read().decode("utf-8", "replace")
+        except Exception:
+            body_txt = ""
+        return e.code, body_txt
 
 
 def local(tag):
@@ -129,12 +138,18 @@ def parse_answer(resp_text):
 
 def call(url, row, timeout):
     try:
-        text = post(url, build_envelope(row), timeout)
-    except urllib.error.HTTPError as e:
-        return None, "HTTP %s" % e.code
+        status, text = post(url, build_envelope(row), timeout)
     except (urllib.error.URLError, socket.timeout, OSError) as e:
         return None, "Сеть: %s" % e
-    return parse_answer(text)
+    lines, err = parse_answer(text)
+    if lines is not None:
+        return lines, None
+    if err and err.startswith("SOAP Fault"):
+        return None, err  # осмысленный фолт (например, из старого сервиса)
+    snippet = " ".join((text or "").split())[:400]
+    if status and status >= 400:
+        return None, "HTTP %s: %s" % (status, snippet or err or "пустое тело")
+    return None, err or ("пустой/непонятный ответ: " + snippet)
 
 
 def diff_rows(old_lines, new_lines):
