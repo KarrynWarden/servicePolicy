@@ -34,8 +34,10 @@ from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from xml.sax.saxutils import escape
 
+# Имена ТЕГОВ запроса (как в контракте сервиса). Порядок = порядок колонок CSV.
+# Внимание: 16-е поле — snils (в CSV/БД оно может называться "ss", но ТЕГ — snils).
 FIELDS = ["nrec", "date1", "date2", "type_org", "code_org", "fam", "im", "ot",
-          "w", "dr", "vpolis", "npolis", "doctype", "docser", "docnum", "ss", "mr"]
+          "w", "dr", "vpolis", "npolis", "doctype", "docser", "docnum", "snils", "mr"]
 
 DATE_FIELDS = {"date1", "date2", "dr"}
 _DDMMYYYY = re.compile(r"^(\d{2})\.(\d{2})\.(\d{4})$")
