@@ -256,6 +256,7 @@ HTML_TMPL = r"""<!doctype html>
   <div class="controls">
     <label><input type="checkbox" id="hideMatch" checked> скрыть совпавшие</label>
     <label><input type="checkbox" id="ignoreP"> игнорировать p_disp/p_proph/p_healthc</label>
+    <label><input type="checkbox" id="ignore206"> игнорировать ошибку 206</label>
     <input type="search" id="q" placeholder="поиск по nrec…">
     <span class="hint">клик по строке — полный ответ и различия</span>
   </div>
@@ -267,8 +268,27 @@ const list = document.getElementById('list');
 const IGN = ['p_disp','p_proph','p_healthc'];
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
-function ignLine(l){ const m=l.match(/^\s*([^:\s]+)\s*:/); return m && IGN.includes(m[1]); }
-function filt(lines, on){ return on ? lines.filter(l=>!ignLine(l)) : lines; }
+function ignLineP(l){ const m=l.match(/^\s*([^:\s]+)\s*:/); return m && IGN.includes(m[1]); }
+// Фильтрует строки по активным галочкам: p_disp/p_proph/p_healthc и/или ошибка 206.
+// Для 206 убирается блок <err>(err/errcode:206/errtext) и строка ack (ack зависит от 206).
+function filt(lines){
+  const igP = document.getElementById('ignoreP').checked;
+  const ig206 = document.getElementById('ignore206').checked;
+  if(!igP && !ig206) return lines;
+  const out=[];
+  for(let i=0;i<lines.length;i++){
+    const l=lines[i];
+    if(igP && ignLineP(l)) continue;
+    if(ig206){
+      if(/^\s*ack\s*:/.test(l)) continue;
+      if(/^\s*err\s*$/.test(l) && i+1<lines.length && /^\s*errcode\s*:\s*206\s*$/.test(lines[i+1])){
+        i+=2; continue;   // пропустить err + errcode:206 + errtext
+      }
+    }
+    out.push(l);
+  }
+  return out;
+}
 function eqArr(a,b){ return a.length===b.length && a.every((x,k)=>x===b[k]); }
 
 // Дифф двух списков строк через LCS -> выровненные [op,l,r], op in eq/del/add.
@@ -288,17 +308,17 @@ function lcsDiff(a,b){
   return rows;
 }
 
-function statusOf(d, ig){
+function statusOf(d){
   if(d.status==='error') return 'error';
-  return eqArr(filt(d.mine,ig), filt(d.orig,ig)) ? 'match' : 'diff';
+  return eqArr(filt(d.mine), filt(d.orig)) ? 'match' : 'diff';
 }
 
-function detailHTML(d, ig){
+function detailHTML(d){
   if(d.status==='error'){
     return '<div class="errbox">Ошибка запроса.<br>Моя функция (новый): '+esc(d.mine_err||'—')+
            '<br>Оригинал (старый): '+esc(d.orig_err||'—')+'</div>';
   }
-  const mine=filt(d.mine,ig), orig=filt(d.orig,ig);
+  const mine=filt(d.mine), orig=filt(d.orig);
   const rows = eqArr(mine,orig) ? mine.map(l=>['eq',l,l]) : lcsDiff(mine,orig);
   let h = '<table class="diff"><tr class="colh"><td>Моя функция</td><td>Оригинал</td></tr>';
   for(const [op,l,r] of rows){
@@ -310,12 +330,11 @@ function detailHTML(d, ig){
 
 function render(){
   const hide = document.getElementById('hideMatch').checked;
-  const ig = document.getElementById('ignoreP').checked;
   const q = document.getElementById('q').value.trim().toLowerCase();
   let sM=0,sD=0,sE=0;
   list.innerHTML='';
   for(const d of DATA){
-    const st = statusOf(d, ig);
+    const st = statusOf(d);
     if(st==='match')sM++; else if(st==='diff')sD++; else sE++;
     if(hide && st==='match') continue;
     if(q && !String(d.nrec).toLowerCase().includes(q)) continue;
@@ -329,7 +348,7 @@ function render(){
     const det = row.querySelector('.detail');
     head.addEventListener('click', ()=>{
       if(!row.classList.contains('open') && !det.dataset.built){
-        det.innerHTML = detailHTML(d, ig); det.dataset.built='1';
+        det.innerHTML = detailHTML(d); det.dataset.built='1';
       }
       row.classList.toggle('open');
     });
@@ -343,12 +362,14 @@ function render(){
     list.innerHTML='<p class="hint">Нет строк для показа (снимите галочку или измените поиск).</p>';
   }
 }
-document.getElementById('hideMatch').addEventListener('change', render);
-document.getElementById('ignoreP').addEventListener('change', ()=>{
-  // при смене фильтра пересобрать уже раскрытые детали
+function onFilterChange(){
+  // при смене фильтра пересобрать уже раскрытые детали и пересчитать статусы
   document.querySelectorAll('.detail').forEach(el=>{ el.dataset.built=''; el.innerHTML=''; });
   render();
-});
+}
+document.getElementById('hideMatch').addEventListener('change', render);
+document.getElementById('ignoreP').addEventListener('change', onFilterChange);
+document.getElementById('ignore206').addEventListener('change', onFilterChange);
 document.getElementById('q').addEventListener('input', render);
 render();
 </script>
