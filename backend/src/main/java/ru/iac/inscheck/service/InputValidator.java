@@ -26,8 +26,12 @@ public class InputValidator {
     private static final Pattern P_DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
     private static final Pattern P_NUM = Pattern.compile("\\d+");
     private static final Pattern P_SNILS = Pattern.compile("\\d{3}-\\d{3}-\\d{3} \\d{2}");
-    // ФИО: буквы русского алфавита, цифры, пробел, «-», «.» (Таблица 2 / контроль 101)
-    private static final Pattern P_FIO = Pattern.compile("[А-ЯЁа-яё0-9 .\\-]*");
+    // Контроль 101 — точный регэксп из пакета inscheck.checkIn:
+    //   ^([А-ЯЁа-яё-]|([А-ЯЁа-яё]+(-| |\.|\. )?)+[А-ЯЁа-яё]?)$
+    // Только русские буквы (без цифр!), одиночные разделители «-», пробел, «.» между
+    // группами букв; без ведущих/концевых/сдвоенных знаков. «-» целиком (пустое ФИО) — ок.
+    private static final Pattern P_FIO = Pattern.compile(
+            "([А-ЯЁа-яё\\-]|([А-ЯЁа-яё]+(-| |\\.|\\. )?)+[А-ЯЁа-яё]?)");
 
     private final InsCheckDao dao;
 
@@ -235,33 +239,29 @@ public class InputValidator {
     }
 
     private void validateFio(Query q, Validation v, SearchParams sp) {
-        String fam = upperOrNull(q.getFam());
-        String im = upperOrNull(q.getIm());
-        String ot = upperOrNull(q.getOt());
+        // Как в пакете: fam=nvl(upper(fam),'-'), затем пополевая проверка регэкспом 101;
+        // при ошибке ставится E101 (однократно) и этот реквизит считается незаполненным
+        // (fam=null) — остальные ФИО не сбрасываются.
+        String fam = blankToDash(upperOrNull(q.getFam()));
+        String im = blankToDash(upperOrNull(q.getIm()));
+        String ot = blankToDash(upperOrNull(q.getOt()));
 
-        boolean badChars = !fioOk(fam) || !fioOk(im) || !fioOk(ot);
-
-        // Незаполненные значения считать = «-»
-        String f = blankToDash(fam);
-        String i = blankToDash(im);
-        String o = blankToDash(ot);
-
-        // Не более 1 элемента из (FAM,IM,OT) = «-»
-        long dashCount = (f.equals("-") ? 1 : 0) + (i.equals("-") ? 1 : 0) + (o.equals("-") ? 1 : 0);
-
-        if (badChars || dashCount > 1) {
+        boolean bad = false;
+        if (!fioOk(fam)) { bad = true; fam = null; }
+        if (!fioOk(im))  { bad = true; im = null; }
+        if (!fioOk(ot))  { bad = true; ot = null; }
+        if (bad) {
             v.add(ErrCode.E101);
-            return; // при ошибке реквизиты ФИО считаются незаполненными
         }
 
-        sp.setFam(f);
-        sp.setIm(i);
-        sp.setOt(o);
-        sp.setMetaFam(RussianMetaphone.encode(f));
-        sp.setMetaIm(RussianMetaphone.encode(i));
-        sp.setMetaOt(RussianMetaphone.encode(o));
-        sp.setFirstIm(firstLetter(i));
-        sp.setFirstOt(firstLetter(o));
+        sp.setFam(fam);
+        sp.setIm(im);
+        sp.setOt(ot);
+        sp.setMetaFam(fam == null ? null : RussianMetaphone.encode(fam));
+        sp.setMetaIm(im == null ? null : RussianMetaphone.encode(im));
+        sp.setMetaOt(ot == null ? null : RussianMetaphone.encode(ot));
+        sp.setFirstIm(firstLetter(im));
+        sp.setFirstOt(firstLetter(ot));
     }
 
     // ===== helpers =====
@@ -278,7 +278,7 @@ public class InputValidator {
     }
 
     private static boolean fioOk(String s) {
-        return s == null || s.isEmpty() || P_FIO.matcher(s).matches();
+        return s != null && P_FIO.matcher(s).matches();
     }
 
     private static String blankToDash(String s) {
