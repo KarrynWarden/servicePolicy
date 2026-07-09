@@ -195,26 +195,25 @@ public class InsCheckService {
         // (постановка, столбец «Заполнение»: YEAR принадлежит Date1).
         fillHealthFlags(answer, pzsk.getId(), date1.getYear());
 
+        // 5. Прикрепление. Как в старом сервисе: строка <prk> выдаётся ВСЕГДА при найденной
+        // СП (пустая, если прикрепления на период нет) — один prk (max dbeg, max typeprk).
+        IPrkDept prk = dao.findPrk(pzsk.getId(), date1, date2);
+        answer.getPrk().add(buildPrk(prk));
+
         // Раздел 4 Таблицы 4: особенности найденной СП (300–305)
         boolean actual = isActual(pzsk, date1, date2);
         if (!actual) {
             errors.add(notActualReason(pzsk, date2));
-        } else {
-            // 5. Прикрепление + контроль 305
-            IPrkDept prk = dao.findPrk(pzsk.getId(), date1, date2);
-            if (prk == null) {
-                errors.add(ErrCode.E305);
-                // Диагностика 305: показать все строки iprkdept по этому id (без фильтра дат).
-                if (log.isDebugEnabled()) {
-                    List<IPrkDept> all = dao.findAllPrk(pzsk.getId());
-                    log.debug("305: прикрепления по id={} (всего {}):", pzsk.getId(), all.size());
-                    for (IPrkDept d : all) {
-                        log.debug("  iprkdept: id={} dbeg={} dend={} typeprk={} mo={}",
-                                d.getId(), d.getDbeg(), d.getDend(), d.getTypeprk(), d.getMo());
-                    }
+        } else if (prk == null) {
+            // Контроль 305 — только при актуальной СП и отсутствии прикрепления.
+            errors.add(ErrCode.E305);
+            if (log.isDebugEnabled()) {   // диагностика: все строки iprkdept по id (без фильтра дат)
+                List<IPrkDept> all = dao.findAllPrk(pzsk.getId());
+                log.debug("305: прикрепления по id={} (всего {}):", pzsk.getId(), all.size());
+                for (IPrkDept d : all) {
+                    log.debug("  iprkdept: id={} dbeg={} dend={} typeprk={} mo={}",
+                            d.getId(), d.getDbeg(), d.getDend(), d.getTypeprk(), d.getMo());
                 }
-            } else {
-                answer.getPrk().add(buildPrk(prk));
             }
         }
     }
@@ -407,9 +406,16 @@ public class InsCheckService {
 
     private Prk buildPrk(IPrkDept p) {
         Prk prk = new Prk();
-        prk.setMo(str(p.getMo()));
-        prk.setModt(date(p.getDbeg()));
-        prk.setPodr(p.podr());
+        if (p == null) {
+            // Прикрепления нет — пустая строка <prk><mo/><podr/><modt/> (как старый сервис).
+            prk.setMo("");
+            prk.setPodr("");
+            prk.setModt("");
+        } else {
+            prk.setMo(str(p.getMo()));
+            prk.setPodr(p.podr());
+            prk.setModt(date(p.getDbeg()));
+        }
         return prk;
     }
 
