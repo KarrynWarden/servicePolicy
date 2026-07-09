@@ -185,6 +185,7 @@ def process(rows, old_url, new_url, timeout, workers):
         else:
             item = {"nrec": row.get("nrec", ""), "status": "ok",
                     "mine": new_lines, "orig": old_lines}
+        item["n"] = idx + 1   # уникальный номер строки ввода (nrec/полис может повторяться)
         results[idx] = item
 
     done = 0
@@ -229,6 +230,7 @@ HTML_TMPL = r"""<!doctype html>
   .head:hover { background:rgba(127,127,127,.06); }
   .dot { width:10px; height:10px; border-radius:50%; flex:0 0 auto; }
   .dot.match{ background:var(--ok);} .dot.diff{ background:var(--bad);} .dot.error{ background:var(--err);}
+  .num { font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--mut); min-width:48px; }
   .nrec { font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:600; }
   .tag { margin-left:auto; font-size:12px; color:var(--mut); }
   .detail { display:none; border-top:1px solid var(--line); padding:10px 12px; overflow-x:auto; }
@@ -258,7 +260,7 @@ HTML_TMPL = r"""<!doctype html>
     <label><input type="checkbox" id="ignoreP"> игнорировать p_disp/p_proph/p_healthc</label>
     <label><input type="checkbox" id="ignore206"> игнорировать ошибку 206</label>
     <label><input type="checkbox" id="ignoreHalg"> не считать различием alg при H-алгоритме</label>
-    <input type="search" id="q" placeholder="поиск по nrec…">
+    <input type="search" id="q" placeholder="поиск по # или nrec…">
     <span class="hint">клик по строке — полный ответ и различия</span>
   </div>
 </header>
@@ -353,11 +355,12 @@ function render(){
     const st = statusOf(d);
     if(st==='match')sM++; else if(st==='diff')sD++; else sE++;
     if(hide && st==='match') continue;
-    if(q && !String(d.nrec).toLowerCase().includes(q)) continue;
+    if(q && !(String(d.n).includes(q) || String(d.nrec).toLowerCase().includes(q))) continue;
     const row = document.createElement('div');
     row.className='row';
     const label = st==='match'?'совпало':(st==='diff'?'различие':'ошибка');
     row.innerHTML = '<div class="head"><span class="dot '+st+'"></span>'+
+      '<span class="num">#'+d.n+'</span>'+
       '<span class="nrec">'+esc(d.nrec)+'</span><span class="tag">'+label+'</span></div>'+
       '<div class="detail"></div>';
     const head = row.querySelector('.head');
