@@ -31,7 +31,6 @@ import urllib.request
 import urllib.error
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
-from difflib import SequenceMatcher
 from xml.sax.saxutils import escape
 
 # Имена ТЕГОВ запроса (как в контракте сервиса). Порядок = порядок колонок CSV.
@@ -154,34 +153,6 @@ def call(url, row, timeout):
     return None, err or ("пустой/непонятный ответ: " + snippet)
 
 
-def diff_rows(old_lines, new_lines):
-    """Выровненные строки диффа: [op, left, right], op in eq/chg/del/add."""
-    rows = []
-    sm = SequenceMatcher(None, old_lines, new_lines, autojunk=False)
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
-        if tag == "equal":
-            for k in range(i2 - i1):
-                rows.append(["eq", old_lines[i1 + k], new_lines[j1 + k]])
-        elif tag == "replace":
-            n = max(i2 - i1, j2 - j1)
-            for k in range(n):
-                l = old_lines[i1 + k] if i1 + k < i2 else None
-                r = new_lines[j1 + k] if j1 + k < j2 else None
-                if l is not None and r is not None:
-                    rows.append(["chg", l, r])
-                elif l is not None:
-                    rows.append(["del", l, None])
-                else:
-                    rows.append(["add", None, r])
-        elif tag == "delete":
-            for k in range(i1, i2):
-                rows.append(["del", old_lines[k], None])
-        elif tag == "insert":
-            for k in range(j1, j2):
-                rows.append(["add", None, new_lines[k]])
-    return rows
-
-
 def read_rows(path):
     with open(path, newline="", encoding="utf-8-sig") as f:
         reader = csv.reader(f)
@@ -205,16 +176,15 @@ def process(rows, old_url, new_url, timeout, workers):
         row = rows[idx]
         old_lines, old_err = call(old_url, row, timeout)
         new_lines, new_err = call(new_url, row, timeout)
-        # mine = новый сервис (--new-url), orig = старый (--old-url). Дифф: left=mine, right=orig.
+        # mine = новый сервис (--new-url), orig = старый (--old-url).
+        # Сравнение и дифф считаются в браузере (чтобы галочка «игнорировать p_*»
+        # пересчитывала мгновенно) — здесь только сырые канонические строки.
         if old_err or new_err:
             item = {"nrec": row.get("nrec", ""), "status": "error",
                     "mine_err": new_err, "orig_err": old_err}
         else:
-            equal = old_lines == new_lines
-            item = {"nrec": row.get("nrec", ""),
-                    "status": "match" if equal else "diff",
-                    "mine": new_lines, "orig": old_lines,
-                    "diff": (None if equal else diff_rows(new_lines, old_lines))}
+            item = {"nrec": row.get("nrec", ""), "status": "ok",
+                    "mine": new_lines, "orig": old_lines}
         results[idx] = item
 
     done = 0
@@ -285,6 +255,7 @@ HTML_TMPL = r"""<!doctype html>
   </div>
   <div class="controls">
     <label><input type="checkbox" id="hideMatch" checked> скрыть совпавшие</label>
+    <label><input type="checkbox" id="ignoreP"> игнорировать p_disp/p_proph/p_healthc</label>
     <input type="search" id="q" placeholder="поиск по nrec…">
     <span class="hint">клик по строке — полный ответ и различия</span>
   </div>
@@ -293,65 +264,91 @@ HTML_TMPL = r"""<!doctype html>
 <script>
 const DATA = __DATA__;
 const list = document.getElementById('list');
-let sM=0,sD=0,sE=0;
-DATA.forEach(d => { if(d.status==='match')sM++; else if(d.status==='diff')sD++; else sE++; });
-document.getElementById('s-total').textContent = DATA.length;
-document.getElementById('s-match').textContent = sM;
-document.getElementById('s-diff').textContent = sD;
-document.getElementById('s-err').textContent = sE;
+const IGN = ['p_disp','p_proph','p_healthc'];
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function ignLine(l){ const m=l.match(/^\s*([^:\s]+)\s*:/); return m && IGN.includes(m[1]); }
+function filt(lines, on){ return on ? lines.filter(l=>!ignLine(l)) : lines; }
+function eqArr(a,b){ return a.length===b.length && a.every((x,k)=>x===b[k]); }
 
-function detailHTML(d){
+// Дифф двух списков строк через LCS -> выровненные [op,l,r], op in eq/del/add.
+function lcsDiff(a,b){
+  const n=a.length, m=b.length;
+  const dp=Array.from({length:n+1},()=>new Int32Array(m+1));
+  for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--)
+    dp[i][j]= a[i]===b[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j],dp[i][j+1]);
+  const rows=[]; let i=0,j=0;
+  while(i<n&&j<m){
+    if(a[i]===b[j]){ rows.push(['eq',a[i],b[j]]); i++; j++; }
+    else if(dp[i+1][j]>=dp[i][j+1]){ rows.push(['del',a[i],null]); i++; }
+    else { rows.push(['add',null,b[j]]); j++; }
+  }
+  while(i<n){ rows.push(['del',a[i++],null]); }
+  while(j<m){ rows.push(['add',null,b[j++]]); }
+  return rows;
+}
+
+function statusOf(d, ig){
+  if(d.status==='error') return 'error';
+  return eqArr(filt(d.mine,ig), filt(d.orig,ig)) ? 'match' : 'diff';
+}
+
+function detailHTML(d, ig){
   if(d.status==='error'){
     return '<div class="errbox">Ошибка запроса.<br>Моя функция (новый): '+esc(d.mine_err||'—')+
            '<br>Оригинал (старый): '+esc(d.orig_err||'—')+'</div>';
   }
-  let rows;
-  if(d.status==='match'){
-    rows = d.mine.map(l => ['eq', l, l]);
-  } else {
-    rows = d.diff;   // [op, left=Моя функция, right=Оригинал]
-  }
-  let h = '<table class="diff"><tr class="colh"><td class="lbl"></td><td>Моя функция</td>'+
-          '<td class="lbl"></td><td>Оригинал</td></tr>';
+  const mine=filt(d.mine,ig), orig=filt(d.orig,ig);
+  const rows = eqArr(mine,orig) ? mine.map(l=>['eq',l,l]) : lcsDiff(mine,orig);
+  let h = '<table class="diff"><tr class="colh"><td>Моя функция</td><td>Оригинал</td></tr>';
   for(const [op,l,r] of rows){
     const cls = op==='eq' ? '' : op;
-    h += '<tr class="'+cls+'">'+
-         '<td class="lbl">'+(l==null?'':'')+'</td><td class="l">'+esc(l)+'</td>'+
-         '<td class="lbl"></td><td class="r">'+esc(r)+'</td></tr>';
+    h += '<tr class="'+cls+'"><td class="l">'+esc(l)+'</td><td class="r">'+esc(r)+'</td></tr>';
   }
   return h + '</table>';
 }
 
 function render(){
   const hide = document.getElementById('hideMatch').checked;
+  const ig = document.getElementById('ignoreP').checked;
   const q = document.getElementById('q').value.trim().toLowerCase();
+  let sM=0,sD=0,sE=0;
   list.innerHTML='';
   for(const d of DATA){
-    if(hide && d.status==='match') continue;
+    const st = statusOf(d, ig);
+    if(st==='match')sM++; else if(st==='diff')sD++; else sE++;
+    if(hide && st==='match') continue;
     if(q && !String(d.nrec).toLowerCase().includes(q)) continue;
     const row = document.createElement('div');
     row.className='row';
-    const label = d.status==='match'?'совпало':(d.status==='diff'?'различие':'ошибка');
-    row.innerHTML = '<div class="head"><span class="dot '+d.status+'"></span>'+
+    const label = st==='match'?'совпало':(st==='diff'?'различие':'ошибка');
+    row.innerHTML = '<div class="head"><span class="dot '+st+'"></span>'+
       '<span class="nrec">'+esc(d.nrec)+'</span><span class="tag">'+label+'</span></div>'+
       '<div class="detail"></div>';
     const head = row.querySelector('.head');
     const det = row.querySelector('.detail');
     head.addEventListener('click', ()=>{
       if(!row.classList.contains('open') && !det.dataset.built){
-        det.innerHTML = detailHTML(d); det.dataset.built='1';
+        det.innerHTML = detailHTML(d, ig); det.dataset.built='1';
       }
       row.classList.toggle('open');
     });
     list.appendChild(row);
   }
+  document.getElementById('s-total').textContent = DATA.length;
+  document.getElementById('s-match').textContent = sM;
+  document.getElementById('s-diff').textContent = sD;
+  document.getElementById('s-err').textContent = sE;
   if(!list.children.length){
     list.innerHTML='<p class="hint">Нет строк для показа (снимите галочку или измените поиск).</p>';
   }
 }
 document.getElementById('hideMatch').addEventListener('change', render);
+document.getElementById('ignoreP').addEventListener('change', ()=>{
+  // при смене фильтра пересобрать уже раскрытые детали
+  document.querySelectorAll('.detail').forEach(el=>{ el.dataset.built=''; el.innerHTML=''; });
+  render();
+});
 document.getElementById('q').addEventListener('input', render);
 render();
 </script>
@@ -383,9 +380,9 @@ def main():
         return 1
     results = process(rows, args.old_url, args.new_url, args.timeout, args.workers)
     generate_html(results, args.out)
-    m = sum(1 for r in results if r["status"] == "match")
-    d = sum(1 for r in results if r["status"] == "diff")
     e = sum(1 for r in results if r["status"] == "error")
+    m = sum(1 for r in results if r["status"] == "ok" and r["mine"] == r["orig"])
+    d = sum(1 for r in results if r["status"] == "ok" and r["mine"] != r["orig"])
     print("Готово: %s  (совпало %d, различий %d, ошибок %d)" % (args.out, m, d, e), file=sys.stderr)
     return 0
 
