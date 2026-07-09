@@ -257,6 +257,7 @@ HTML_TMPL = r"""<!doctype html>
     <label><input type="checkbox" id="hideMatch" checked> скрыть совпавшие</label>
     <label><input type="checkbox" id="ignoreP"> игнорировать p_disp/p_proph/p_healthc</label>
     <label><input type="checkbox" id="ignore206"> игнорировать ошибку 206</label>
+    <label><input type="checkbox" id="ignoreHalg"> не считать различием alg при H-алгоритме</label>
     <input type="search" id="q" placeholder="поиск по nrec…">
     <span class="hint">клик по строке — полный ответ и различия</span>
   </div>
@@ -269,16 +270,26 @@ const IGN = ['p_disp','p_proph','p_healthc'];
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function ignLineP(l){ const m=l.match(/^\s*([^:\s]+)\s*:/); return m && IGN.includes(m[1]); }
-// Фильтрует строки по активным галочкам: p_disp/p_proph/p_healthc и/или ошибка 206.
+// В ответе есть H-алгоритм (H01/H02/H03 — латинская H или кириллическая Н)?
+function hasHalg(lines){
+  for(const l of lines){
+    const m=l.match(/^\s*alg\s*:\s*(.+)$/);
+    if(m){ const v=m[1].trim(); if(v[0]==='H'||v[0]==='Н') return true; }
+  }
+  return false;
+}
+// Фильтрует строки по активным галочкам: p_disp/p_proph/p_healthc, ошибка 206,
+// и (dropAlg) строки alg — когда у ответа H-алгоритм.
 // Для 206 убирается блок <err>(err/errcode:206/errtext) и строка ack (ack зависит от 206).
-function filt(lines){
+function filt(lines, dropAlg){
   const igP = document.getElementById('ignoreP').checked;
   const ig206 = document.getElementById('ignore206').checked;
-  if(!igP && !ig206) return lines;
+  if(!igP && !ig206 && !dropAlg) return lines;
   const out=[];
   for(let i=0;i<lines.length;i++){
     const l=lines[i];
     if(igP && ignLineP(l)) continue;
+    if(dropAlg && /^\s*alg\s*:/.test(l)) continue;
     if(ig206){
       if(/^\s*ack\s*:/.test(l)) continue;
       if(/^\s*err\s*$/.test(l) && i+1<lines.length && /^\s*errcode\s*:\s*206\s*$/.test(lines[i+1])){
@@ -288,6 +299,9 @@ function filt(lines){
     out.push(l);
   }
   return out;
+}
+function dropAlgFor(d){
+  return document.getElementById('ignoreHalg').checked && (hasHalg(d.mine) || hasHalg(d.orig));
 }
 function eqArr(a,b){ return a.length===b.length && a.every((x,k)=>x===b[k]); }
 
@@ -310,7 +324,8 @@ function lcsDiff(a,b){
 
 function statusOf(d){
   if(d.status==='error') return 'error';
-  return eqArr(filt(d.mine), filt(d.orig)) ? 'match' : 'diff';
+  const da=dropAlgFor(d);
+  return eqArr(filt(d.mine,da), filt(d.orig,da)) ? 'match' : 'diff';
 }
 
 function detailHTML(d){
@@ -318,7 +333,8 @@ function detailHTML(d){
     return '<div class="errbox">Ошибка запроса.<br>Моя функция (новый): '+esc(d.mine_err||'—')+
            '<br>Оригинал (старый): '+esc(d.orig_err||'—')+'</div>';
   }
-  const mine=filt(d.mine), orig=filt(d.orig);
+  const da=dropAlgFor(d);
+  const mine=filt(d.mine,da), orig=filt(d.orig,da);
   const rows = eqArr(mine,orig) ? mine.map(l=>['eq',l,l]) : lcsDiff(mine,orig);
   let h = '<table class="diff"><tr class="colh"><td>Моя функция</td><td>Оригинал</td></tr>';
   for(const [op,l,r] of rows){
@@ -370,6 +386,7 @@ function onFilterChange(){
 document.getElementById('hideMatch').addEventListener('change', render);
 document.getElementById('ignoreP').addEventListener('change', onFilterChange);
 document.getElementById('ignore206').addEventListener('change', onFilterChange);
+document.getElementById('ignoreHalg').addEventListener('change', onFilterChange);
 document.getElementById('q').addEventListener('input', render);
 render();
 </script>
