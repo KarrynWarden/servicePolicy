@@ -203,16 +203,16 @@ def process(rows, old_url, new_url, timeout, workers):
         row = rows[idx]
         old_lines, old_err = call(old_url, row, timeout)
         new_lines, new_err = call(new_url, row, timeout)
+        # mine = новый сервис (--new-url), orig = старый (--old-url). Дифф: left=mine, right=orig.
         if old_err or new_err:
-            status = "error"
-            item = {"nrec": row.get("nrec", ""), "status": status,
-                    "old_err": old_err, "new_err": new_err}
+            item = {"nrec": row.get("nrec", ""), "status": "error",
+                    "mine_err": new_err, "orig_err": old_err}
         else:
             equal = old_lines == new_lines
             item = {"nrec": row.get("nrec", ""),
                     "status": "match" if equal else "diff",
-                    "old": old_lines, "new": (None if equal else new_lines),
-                    "diff": (None if equal else diff_rows(old_lines, new_lines))}
+                    "mine": new_lines, "orig": old_lines,
+                    "diff": (None if equal else diff_rows(new_lines, old_lines))}
         results[idx] = item
 
     done = 0
@@ -302,14 +302,14 @@ function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;'
 
 function detailHTML(d){
   if(d.status==='error'){
-    return '<div class="errbox">Ошибка запроса.<br>Старый: '+esc(d.old_err||'—')+
-           '<br>Новый: '+esc(d.new_err||'—')+'</div>';
+    return '<div class="errbox">Ошибка запроса.<br>Моя функция (новый): '+esc(d.mine_err||'—')+
+           '<br>Оригинал (старый): '+esc(d.orig_err||'—')+'</div>';
   }
   let rows;
   if(d.status==='match'){
-    rows = d.old.map(l => ['eq', l, l]);
+    rows = d.mine.map(l => ['eq', l, l]);
   } else {
-    rows = d.diff;
+    rows = d.diff;   // [op, left=Моя функция, right=Оригинал]
   }
   let h = '<table class="diff"><tr class="colh"><td class="lbl"></td><td>Моя функция</td>'+
           '<td class="lbl"></td><td>Оригинал</td></tr>';
