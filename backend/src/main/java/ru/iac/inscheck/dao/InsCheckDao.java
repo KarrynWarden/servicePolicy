@@ -56,8 +56,8 @@ public class InsCheckDao {
 
     /**
      * Контроль 206: документ ПЗСК* соответствует запросу. Документы ЗЛ хранятся в IDOC
-     * (связь по IDROW, TYPEROW in (1,2)) — на iperson полей документа нет.
-     * true, если у записи есть документ с совпадающими doctype/docser/docnum.
+     * (связь по IDROW, TYPEROW in (1,2)). true, если 206 НЕ нужен: есть совместимый
+     * документ (null-терпимо, как <> с NULL в пакете) либо документов нет вовсе.
      */
     public boolean docMatches(Long idrow, Integer doctype, String docser, String docnum) {
         MapSqlParameterSource p = new MapSqlParameterSource()
