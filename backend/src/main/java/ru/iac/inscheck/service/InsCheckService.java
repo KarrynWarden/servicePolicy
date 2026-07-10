@@ -395,7 +395,15 @@ public class InsCheckService {
         // (decode(vpolis,3,fpolis,null), decode(vpolis,3,enp,npolis)).
         boolean enp = p.getVpolis() != null && p.getVpolis() == 3;
         ins.setFpolis(enp ? str(p.getFpolis()) : "");
-        ins.setNpolis(nz(enp ? p.getEnp() : p.getNpolis()));
+        // Восстановление ведущих нулей: в PG номер хранится числом и нули при чтении
+        // теряются, старый сервис их выдавал. Дополняем слева по значности типа полиса:
+        // vpolis=3 (ЕНП) — 16 знаков, vpolis=2 (врем. свидетельство) — 9 знаков.
+        // vpolis=1 (старый образец) — значность переменная, дополнять нельзя (оставляем как есть).
+        String num = nz(enp ? p.getEnp() : p.getNpolis());
+        int vp = p.getVpolis() == null ? 0 : p.getVpolis();
+        if (vp == 3) num = lpad0(num, 16);
+        else if (vp == 2) num = lpad0(num, 9);
+        ins.setNpolis(num);
         ins.setDvisit(date(p.getDvizit()));
         ins.setDbeg(date(p.getDbeg()));
         ins.setDend(date(p.getDend()));
@@ -517,6 +525,12 @@ public class InsCheckService {
 
     private static String nz(String s) {
         return s == null ? "" : s;
+    }
+
+    /** Дополнение слева нулями до значности len (восстановление ведущих нулей номера полиса). */
+    private static String lpad0(String s, int len) {
+        if (s == null) return "";
+        return s.length() >= len ? s : "0".repeat(len - s.length()) + s;
     }
 
     private static String flag01(boolean b) {
