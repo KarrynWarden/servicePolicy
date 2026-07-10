@@ -259,6 +259,7 @@ HTML_TMPL = r"""<!doctype html>
     <label><input type="checkbox" id="hideMatch" checked> скрыть совпавшие</label>
     <label><input type="checkbox" id="ignoreP"> игнорировать p_disp/p_proph/p_healthc</label>
     <label><input type="checkbox" id="ignore206"> игнорировать ошибку 206</label>
+    <label><input type="checkbox" id="ignore111txt"> игнорировать текст ошибки 111</label>
     <label><input type="checkbox" id="ignoreHalg"> не считать различием alg при H-алгоритме</label>
     <input type="search" id="q" placeholder="поиск по # или nrec…">
     <span class="hint">клик по строке — полный ответ и различия</span>
@@ -286,16 +287,20 @@ function hasHalg(lines){
 function filt(lines, dropAlg){
   const igP = document.getElementById('ignoreP').checked;
   const ig206 = document.getElementById('ignore206').checked;
-  if(!igP && !ig206 && !dropAlg) return lines;
+  const ig111 = document.getElementById('ignore111txt').checked;
+  if(!igP && !ig206 && !ig111 && !dropAlg) return lines;
   const out=[];
   for(let i=0;i<lines.length;i++){
     const l=lines[i];
     if(igP && ignLineP(l)) continue;
     if(dropAlg && /^\s*alg\s*:/.test(l)) continue;
-    if(ig206){
-      if(/^\s*ack\s*:/.test(l)) continue;
-      if(/^\s*err\s*$/.test(l) && i+1<lines.length && /^\s*errcode\s*:\s*206\s*$/.test(lines[i+1])){
-        i+=2; continue;   // пропустить err + errcode:206 + errtext
+    if(ig206 && /^\s*ack\s*:/.test(l)) continue;
+    // Блок ошибки: err / errcode: X / errtext: Y
+    if(/^\s*err\s*$/.test(l) && i+1<lines.length && /^\s*errcode\s*:/.test(lines[i+1])){
+      const code = (lines[i+1].match(/errcode\s*:\s*(\d+)/)||[])[1];
+      if(ig206 && code==='206'){ i+=2; continue; }              // 206: убрать весь блок (err+errcode+errtext)
+      if(ig111 && code==='111'){                                 // 111: убрать только errtext (текст изменён)
+        out.push(l); out.push(lines[i+1]); i+=2; continue;
       }
     }
     out.push(l);
@@ -389,6 +394,7 @@ function onFilterChange(){
 document.getElementById('hideMatch').addEventListener('change', render);
 document.getElementById('ignoreP').addEventListener('change', onFilterChange);
 document.getElementById('ignore206').addEventListener('change', onFilterChange);
+document.getElementById('ignore111txt').addEventListener('change', onFilterChange);
 document.getElementById('ignoreHalg').addEventListener('change', onFilterChange);
 document.getElementById('q').addEventListener('input', render);
 render();
