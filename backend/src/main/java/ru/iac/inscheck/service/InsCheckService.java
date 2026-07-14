@@ -396,14 +396,10 @@ public class InsCheckService {
         boolean enp = p.getVpolis() != null && p.getVpolis() == 3;
         ins.setFpolis(enp ? str(p.getFpolis()) : "");
         // Восстановление ведущих нулей: в PG номер хранится числом и нули при чтении
-        // теряются, старый сервис их выдавал. Дополняем слева по значности типа полиса:
-        // vpolis=3 (ЕНП) — 16 знаков, vpolis=2 (врем. свидетельство) — 9 знаков.
-        // vpolis=1 (старый образец) — значность переменная, дополнять нельзя (оставляем как есть).
+        // теряются, старый сервис всегда добивал номер слева нулями до 16 знаков
+        // (для всех типов полиса, включая vpolis=1). Пустой номер оставляем пустым.
         String num = nz(enp ? p.getEnp() : p.getNpolis());
-        int vp = p.getVpolis() == null ? 0 : p.getVpolis();
-        if (vp == 3) num = lpad0(num, 16);
-        else if (vp == 2) num = lpad0(num, 9);
-        ins.setNpolis(num);
+        ins.setNpolis(num.isEmpty() ? "" : lpad0(num, 16));
         ins.setDvisit(date(p.getDvizit()));
         ins.setDbeg(date(p.getDbeg()));
         ins.setDend(date(p.getDend()));
