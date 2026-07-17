@@ -394,19 +394,13 @@ public class InsCheckService {
 
     // ===== Сборка элементов ответа =====
 
-    /** Пустой &lt;ins&gt; со всеми пустыми полями — чтобы тег всегда присутствовал в ответе. */
+    /**
+     * Пустой &lt;ins&gt; — чтобы тег всегда присутствовал в ответе. Поля НЕ заполняются
+     * (остаются null), поэтому JAXB отдаёт самозакрывающийся &lt;ins/&gt; без дочерних тегов —
+     * ровно как старый сервис (пустой ins там без детей, а не &lt;smo/&gt;&lt;vpolis/&gt;…).
+     */
     private static Ins emptyIns() {
-        Ins ins = new Ins();
-        ins.setSmo("");
-        ins.setVpolis("");
-        ins.setFpolis("");
-        ins.setNpolis("");
-        ins.setDvisit("");
-        ins.setDbeg("");
-        ins.setDend("");
-        ins.setReason("");
-        ins.setId("");
-        return ins;
+        return new Ins();
     }
 
     private Ins buildIns(IPerson p) {

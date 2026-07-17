@@ -330,11 +330,12 @@ function filt(lines, opts){
     // не отдаёт alg вовсе (ls_alg берётся из той же строки RES, что и ins), а мой отдаёт.
     if((dropAlg || dropIns) && /^\s*alg\s*:/.test(l)) continue;
     if((ig206 || dropIns) && /^\s*ack\s*:/.test(l)) continue;   // ack зависит и от 206, и от typeprk<>1
-    if(dropIns && /^\s*ins\s*$/.test(l)){                       // typeprk<>1: убрать блок ins целиком
+    if(dropIns && /^\s*ins\s*$/.test(l)){                       // мой ins с детьми: убрать заголовок + детей
       const ind = leadWs(l);
       while(i+1<lines.length && leadWs(lines[i+1])>ind) i++;
       continue;
     }
+    if(dropIns && /^\s*ins\s*:/.test(l)) continue;              // пустой <ins/> старого (лист «ins:»)
     // Блок ошибки: err / errcode: X / errtext: Y
     if(/^\s*err\s*$/.test(l) && i+1<lines.length && /^\s*errcode\s*:/.test(lines[i+1])){
       const code = (lines[i+1].match(/errcode\s*:\s*(\d+)/)||[])[1];
