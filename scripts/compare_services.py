@@ -270,6 +270,7 @@ HTML_TMPL = r"""<!doctype html>
     <label><input type="checkbox" id="ignore206"> игнорировать ошибку 206</label>
     <label><input type="checkbox" id="ignore111txt"> игнорировать текст ошибки 111</label>
     <label><input type="checkbox" id="ignoreHalg"> не считать различием alg при H-алгоритме</label>
+    <label><input type="checkbox" id="ignoreHfound"> не считать различием: у оригинала 200 «СП не найдена», а у меня найдено по H-алгоритму</label>
     <label><input type="checkbox" id="ignoreEmptyIns"> игнорировать механику typeprk&ne;1 (пустой ins старого: ins + alg + ack)</label>
     <input type="search" id="q" placeholder="поиск по # или nrec…">
     <span class="hint">клик по строке — полный ответ и различия</span>
@@ -306,6 +307,17 @@ function insValsEmpty(lines){
     if(m && m[1].trim()!=='') any=true;
   }
   return saw ? !any : true;
+}
+// Оригинал вернул «СП не найдена» (errcode 200)?
+function origNotFound(lines){
+  for(const l of lines){ if(/^\s*errcode\s*:\s*200\s*$/.test(l)) return true; }
+  return false;
+}
+// Ожидаемое расхождение из-за нового этапа H: старый ничего не нашёл (200),
+// а мой нашёл СП по H-алгоритму (H01/H02/H03) — не считаем это различием.
+function hFoundMatch(d){
+  return document.getElementById('ignoreHfound').checked &&
+         d.status==='ok' && origNotFound(d.orig) && hasHalg(d.mine);
 }
 // Механика старого typeprk<>1 активна для записи: старый отдал пустой ins, а мой — заполненный.
 function dropEmptyInsFor(d){
@@ -376,6 +388,7 @@ function lcsDiff(a,b){
 
 function statusOf(d){
   if(d.status==='error') return 'error';
+  if(hFoundMatch(d)) return 'match';   // старый 200, а мой нашёл по H — ожидаемо, не различие
   const o=optsFor(d);
   return eqArr(filt(d.mine,o), filt(d.orig,o)) ? 'match' : 'diff';
 }
@@ -453,6 +466,7 @@ document.getElementById('ignoreP').addEventListener('change', onFilterChange);
 document.getElementById('ignore206').addEventListener('change', onFilterChange);
 document.getElementById('ignore111txt').addEventListener('change', onFilterChange);
 document.getElementById('ignoreHalg').addEventListener('change', onFilterChange);
+document.getElementById('ignoreHfound').addEventListener('change', onFilterChange);
 document.getElementById('ignoreEmptyIns').addEventListener('change', onFilterChange);
 document.getElementById('q').addEventListener('input', render);
 render();
