@@ -79,6 +79,10 @@ public class InsCheckService {
     public Answer getInsPrkState(Query q, RequestContext ctx) {
         Answer answer = new Answer();
         answer.setNrec(q.getNrec());
+        // Тег <ins> присутствует ВСЕГДА (как в старом сервисе — там ins выдавался даже
+        // пустым). Внешние потребители могут рассчитывать, что поле есть всегда.
+        // Если СП найдена, пустой ins ниже перезаписывается заполненным (buildIns).
+        answer.setIns(emptyIns());
 
         Set<ErrCode> errors = new LinkedHashSet<>();
         try {
@@ -112,7 +116,11 @@ public class InsCheckService {
         writeLog(q, ctx, errors);
 
         fillErrors(answer, errors);
-        answer.setAck(errors.isEmpty() && answer.getIns() != null ? "0" : "2");
+        // ack=0 только при отсутствии ошибок (СП найдена и вопросов нет). Тег <ins> теперь
+        // присутствует всегда, поэтому проверять его на null для ack больше нельзя — любой
+        // путь с пустым ins добавляет ошибку (E200/E201/305…), значит errors неполон только
+        // когда СП реально определена.
+        answer.setAck(errors.isEmpty() ? "0" : "2");
         return answer;
     }
 
@@ -385,6 +393,21 @@ public class InsCheckService {
     }
 
     // ===== Сборка элементов ответа =====
+
+    /** Пустой &lt;ins&gt; со всеми пустыми полями — чтобы тег всегда присутствовал в ответе. */
+    private static Ins emptyIns() {
+        Ins ins = new Ins();
+        ins.setSmo("");
+        ins.setVpolis("");
+        ins.setFpolis("");
+        ins.setNpolis("");
+        ins.setDvisit("");
+        ins.setDbeg("");
+        ins.setDend("");
+        ins.setReason("");
+        ins.setId("");
+        return ins;
+    }
 
     private Ins buildIns(IPerson p) {
         Ins ins = new Ins();

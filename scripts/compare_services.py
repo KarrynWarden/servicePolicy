@@ -270,7 +270,7 @@ HTML_TMPL = r"""<!doctype html>
     <label><input type="checkbox" id="ignore206"> игнорировать ошибку 206</label>
     <label><input type="checkbox" id="ignore111txt"> игнорировать текст ошибки 111</label>
     <label><input type="checkbox" id="ignoreHalg"> не считать различием alg при H-алгоритме</label>
-    <label><input type="checkbox" id="ignoreEmptyIns"> игнорировать пустой ins старого (механика typeprk&ne;1) + его ack</label>
+    <label><input type="checkbox" id="ignoreEmptyIns"> игнорировать механику typeprk&ne;1 (пустой ins старого: ins + alg + ack)</label>
     <input type="search" id="q" placeholder="поиск по # или nrec…">
     <span class="hint">клик по строке — полный ответ и различия</span>
   </div>
@@ -326,7 +326,9 @@ function filt(lines, opts){
   for(let i=0;i<lines.length;i++){
     const l=lines[i];
     if(igP && ignLineP(l)) continue;
-    if(dropAlg && /^\s*alg\s*:/.test(l)) continue;
+    // alg убирается и по H-галочке, и по механике typeprk<>1: старый при typeprk<>1
+    // не отдаёт alg вовсе (ls_alg берётся из той же строки RES, что и ins), а мой отдаёт.
+    if((dropAlg || dropIns) && /^\s*alg\s*:/.test(l)) continue;
     if((ig206 || dropIns) && /^\s*ack\s*:/.test(l)) continue;   // ack зависит и от 206, и от typeprk<>1
     if(dropIns && /^\s*ins\s*$/.test(l)){                       // typeprk<>1: убрать блок ins целиком
       const ind = leadWs(l);
