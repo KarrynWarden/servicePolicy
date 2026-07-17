@@ -11,7 +11,9 @@
 Только стандартная библиотека Python 3 — работает на офлайн-ПК без установки пакетов.
 
 Колонки CSV (в этом порядке; первая строка-заголовок с 'nrec' распознаётся и пропускается):
-  nrec,date1,date2,type_org,code_org,fam,im,ot,w,dr,vpolis,npolis,doctype,docser,docnum,ss,mr
+  nrec,date1,date2,type_org,code_org,fam,im,ot,w,dr,vpolis,npolis,doctype,docser,docnum,ss,mr[,typeprk]
+Необязательная 18-я колонка typeprk (значение iprkdept.typeprk выбранной ПЗСК) в SOAP-ответе
+не передаётся, поэтому её можно подать во входном CSV — тогда она показывается бейджем в отчёте.
 
 Пример:
   python3 compare_services.py \
@@ -165,6 +167,9 @@ def read_rows(path):
             row = {}
             for j, f_ in enumerate(FIELDS):
                 row[f_] = rec[j].strip() if j < len(rec) else ""
+            # Необязательная 18-я колонка typeprk (значение из iprkdept выбранной ПЗСК) —
+            # его нет в SOAP-ответе, поэтому передаётся во входном CSV и показывается в отчёте.
+            row["_typeprk"] = rec[len(FIELDS)].strip() if len(rec) > len(FIELDS) else ""
             rows.append(row)
         return rows
 
@@ -186,6 +191,7 @@ def process(rows, old_url, new_url, timeout, workers):
             item = {"nrec": row.get("nrec", ""), "status": "ok",
                     "mine": new_lines, "orig": old_lines}
         item["n"] = idx + 1   # уникальный номер строки ввода (nrec/полис может повторяться)
+        item["typeprk"] = row.get("_typeprk", "")   # из необязательной 18-й колонки CSV
         results[idx] = item
 
     done = 0
@@ -232,6 +238,9 @@ HTML_TMPL = r"""<!doctype html>
   .dot.match{ background:var(--ok);} .dot.diff{ background:var(--bad);} .dot.error{ background:var(--err);}
   .num { font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--mut); min-width:48px; }
   .nrec { font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:600; }
+  .tprk { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; color:var(--mut);
+          padding:1px 6px; border:1px solid var(--line); border-radius:8px; }
+  .tprk.warn { color:var(--err); background:var(--errbg); border-color:transparent; }
   .tag { margin-left:auto; font-size:12px; color:var(--mut); }
   .detail { display:none; border-top:1px solid var(--line); padding:10px 12px; overflow-x:auto; }
   .row.open .detail { display:block; }
@@ -261,6 +270,7 @@ HTML_TMPL = r"""<!doctype html>
     <label><input type="checkbox" id="ignore206"> игнорировать ошибку 206</label>
     <label><input type="checkbox" id="ignore111txt"> игнорировать текст ошибки 111</label>
     <label><input type="checkbox" id="ignoreHalg"> не считать различием alg при H-алгоритме</label>
+    <label><input type="checkbox" id="ignoreEmptyIns"> игнорировать пустой ins старого (механика typeprk&ne;1) + его ack</label>
     <input type="search" id="q" placeholder="поиск по # или nrec…">
     <span class="hint">клик по строке — полный ответ и различия</span>
   </div>
@@ -273,6 +283,7 @@ const IGN = ['p_disp','p_proph','p_healthc'];
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function ignLineP(l){ const m=l.match(/^\s*([^:\s]+)\s*:/); return m && IGN.includes(m[1]); }
+function leadWs(l){ const m=l.match(/^(\s*)/); return m[1].length; }
 // В ответе есть H-алгоритм (H01/H02/H03 — латинская H или кириллическая Н)?
 function hasHalg(lines){
   for(const l of lines){
@@ -281,20 +292,47 @@ function hasHalg(lines){
   }
   return false;
 }
+// Блок ins пуст? Старый сервис отдаёт <ins> с пустыми детьми, когда у выбранного
+// прикрепления typeprk<>1 (тогда и ins не заполняется, и ack=2). true = ins присутствует,
+// но все дочерние значения пусты, ЛИБО блока ins нет вовсе.
+function insValsEmpty(lines){
+  const i = lines.findIndex(l=>/^\s*ins\s*$/.test(l));
+  if(i<0) return true;                    // нет блока ins — считаем «пусто»
+  const ind = leadWs(lines[i]);
+  let saw=false, any=false;
+  for(let j=i+1;j<lines.length && leadWs(lines[j])>ind;j++){
+    saw=true;
+    const m=lines[j].match(/:\s*(.*)$/);
+    if(m && m[1].trim()!=='') any=true;
+  }
+  return saw ? !any : true;
+}
+// Механика старого typeprk<>1 активна для записи: старый отдал пустой ins, а мой — заполненный.
+function dropEmptyInsFor(d){
+  return document.getElementById('ignoreEmptyIns').checked &&
+         d.status==='ok' && insValsEmpty(d.orig) && !insValsEmpty(d.mine);
+}
 // Фильтрует строки по активным галочкам: p_disp/p_proph/p_healthc, ошибка 206,
-// и (dropAlg) строки alg — когда у ответа H-алгоритм.
+// (dropAlg) строки alg при H-алгоритме, (dropIns) блок ins + строка ack при механике typeprk<>1.
 // Для 206 убирается блок <err>(err/errcode:206/errtext) и строка ack (ack зависит от 206).
-function filt(lines, dropAlg){
+function filt(lines, opts){
+  opts = opts || {};
+  const dropAlg = !!opts.dropAlg, dropIns = !!opts.dropIns;
   const igP = document.getElementById('ignoreP').checked;
   const ig206 = document.getElementById('ignore206').checked;
   const ig111 = document.getElementById('ignore111txt').checked;
-  if(!igP && !ig206 && !ig111 && !dropAlg) return lines;
+  if(!igP && !ig206 && !ig111 && !dropAlg && !dropIns) return lines;
   const out=[];
   for(let i=0;i<lines.length;i++){
     const l=lines[i];
     if(igP && ignLineP(l)) continue;
     if(dropAlg && /^\s*alg\s*:/.test(l)) continue;
-    if(ig206 && /^\s*ack\s*:/.test(l)) continue;
+    if((ig206 || dropIns) && /^\s*ack\s*:/.test(l)) continue;   // ack зависит и от 206, и от typeprk<>1
+    if(dropIns && /^\s*ins\s*$/.test(l)){                       // typeprk<>1: убрать блок ins целиком
+      const ind = leadWs(l);
+      while(i+1<lines.length && leadWs(lines[i+1])>ind) i++;
+      continue;
+    }
     // Блок ошибки: err / errcode: X / errtext: Y
     if(/^\s*err\s*$/.test(l) && i+1<lines.length && /^\s*errcode\s*:/.test(lines[i+1])){
       const code = (lines[i+1].match(/errcode\s*:\s*(\d+)/)||[])[1];
@@ -309,6 +347,10 @@ function filt(lines, dropAlg){
 }
 function dropAlgFor(d){
   return document.getElementById('ignoreHalg').checked && (hasHalg(d.mine) || hasHalg(d.orig));
+}
+// Опции фильтрации для записи (вычисляются один раз): зависят от содержимого обеих сторон.
+function optsFor(d){
+  return { dropAlg: dropAlgFor(d), dropIns: dropEmptyInsFor(d) };
 }
 function eqArr(a,b){ return a.length===b.length && a.every((x,k)=>x===b[k]); }
 
@@ -331,8 +373,8 @@ function lcsDiff(a,b){
 
 function statusOf(d){
   if(d.status==='error') return 'error';
-  const da=dropAlgFor(d);
-  return eqArr(filt(d.mine,da), filt(d.orig,da)) ? 'match' : 'diff';
+  const o=optsFor(d);
+  return eqArr(filt(d.mine,o), filt(d.orig,o)) ? 'match' : 'diff';
 }
 
 function detailHTML(d){
@@ -340,8 +382,8 @@ function detailHTML(d){
     return '<div class="errbox">Ошибка запроса.<br>Моя функция (новый): '+esc(d.mine_err||'—')+
            '<br>Оригинал (старый): '+esc(d.orig_err||'—')+'</div>';
   }
-  const da=dropAlgFor(d);
-  const mine=filt(d.mine,da), orig=filt(d.orig,da);
+  const o=optsFor(d);
+  const mine=filt(d.mine,o), orig=filt(d.orig,o);
   const rows = eqArr(mine,orig) ? mine.map(l=>['eq',l,l]) : lcsDiff(mine,orig);
   let h = '<table class="diff"><tr class="colh"><td>Моя функция</td><td>Оригинал</td></tr>';
   for(const [op,l,r] of rows){
@@ -364,9 +406,21 @@ function render(){
     const row = document.createElement('div');
     row.className='row';
     const label = st==='match'?'совпало':(st==='diff'?'различие':'ошибка');
+    // typeprk НЕ приходит в SOAP-ответе ни у старого, ни у нового сервиса (в prk только
+    // mo/podr/modt) — берём его из необязательной 18-й колонки CSV (значение из iprkdept).
+    // Плюс всегда помечаем записи, где сработала механика старого (пустой ins при заполненном моём).
+    let tprk='';
+    if(d.status==='ok'){
+      const emptyOld = insValsEmpty(d.orig) && !insValsEmpty(d.mine);
+      const tp = (d.typeprk||'').trim();
+      let parts=[], warn=false;
+      if(tp!==''){ parts.push('typeprk='+esc(tp)); if(tp!=='1') warn=true; }
+      if(emptyOld){ parts.push('старый ins пуст'); warn=true; }
+      if(parts.length) tprk='<span class="tprk'+(warn?' warn':'')+'">'+parts.join(' · ')+'</span>';
+    }
     row.innerHTML = '<div class="head"><span class="dot '+st+'"></span>'+
       '<span class="num">#'+d.n+'</span>'+
-      '<span class="nrec">'+esc(d.nrec)+'</span><span class="tag">'+label+'</span></div>'+
+      '<span class="nrec">'+esc(d.nrec)+'</span>'+tprk+'<span class="tag">'+label+'</span></div>'+
       '<div class="detail"></div>';
     const head = row.querySelector('.head');
     const det = row.querySelector('.detail');
@@ -396,6 +450,7 @@ document.getElementById('ignoreP').addEventListener('change', onFilterChange);
 document.getElementById('ignore206').addEventListener('change', onFilterChange);
 document.getElementById('ignore111txt').addEventListener('change', onFilterChange);
 document.getElementById('ignoreHalg').addEventListener('change', onFilterChange);
+document.getElementById('ignoreEmptyIns').addEventListener('change', onFilterChange);
 document.getElementById('q').addEventListener('input', render);
 render();
 </script>
