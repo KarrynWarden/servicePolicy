@@ -1,9 +1,11 @@
 package ru.iac.inscheck.config;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.ws.config.annotation.EnableWs;
@@ -30,6 +32,18 @@ public class WebServiceConfig extends WsConfigurerAdapter {
         servlet.setApplicationContext(context);
         servlet.setTransformWsdlLocations(true);
         return new ServletRegistrationBean<>(servlet, "/ws/*");
+    }
+
+    /**
+     * Фильтр вокруг /ws/*: если запрос не разобрался (сервлет вернул пусто/упал),
+     * отдаёт HTML-страницу «Критическая ошибка» вместо пустого ответа — как старый сервис.
+     */
+    @Bean
+    public FilterRegistrationBean<CriticalErrorFilter> criticalErrorFilter() {
+        FilterRegistrationBean<CriticalErrorFilter> reg = new FilterRegistrationBean<>(new CriticalErrorFilter());
+        reg.addUrlPatterns("/ws/*");
+        reg.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return reg;
     }
 
     @Bean

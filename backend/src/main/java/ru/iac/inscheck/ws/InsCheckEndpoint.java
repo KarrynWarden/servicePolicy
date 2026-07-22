@@ -1,6 +1,8 @@
 package ru.iac.inscheck.ws;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ws.context.MessageContext;
 import org.springframework.ws.server.endpoint.annotation.Endpoint;
 import org.springframework.ws.server.endpoint.annotation.PayloadRoot;
@@ -9,6 +11,7 @@ import org.springframework.ws.server.endpoint.annotation.ResponsePayload;
 import org.springframework.ws.transport.context.TransportContext;
 import org.springframework.ws.transport.context.TransportContextHolder;
 import org.springframework.ws.transport.http.HttpServletConnection;
+import ru.iac.inscheck.model.ErrCode;
 import ru.iac.inscheck.service.InputValidator;
 import ru.iac.inscheck.service.InsCheckService;
 import ru.iac.inscheck.service.RequestContext;
@@ -16,6 +19,7 @@ import ru.iac.inscheck.ws.model.Answer;
 import ru.iac.inscheck.ws.model.Err;
 import ru.iac.inscheck.ws.model.GetInsPrkStateRequest;
 import ru.iac.inscheck.ws.model.GetInsPrkStateResponse;
+import ru.iac.inscheck.ws.model.Ins;
 import ru.iac.inscheck.ws.model.Query;
 
 /**
@@ -27,6 +31,8 @@ import ru.iac.inscheck.ws.model.Query;
  */
 @Endpoint
 public class InsCheckEndpoint {
+
+    private static final Logger log = LoggerFactory.getLogger(InsCheckEndpoint.class);
 
     private static final String NAMESPACE = "http://tempuri.org/";
 
@@ -53,7 +59,23 @@ public class InsCheckEndpoint {
             answer = new Answer();
             answer.getErr().add(new Err(String.valueOf(se.code()), se.text()));
         } else {
-            answer = service.getInsPrkState(q, buildRequestContext());
+            try {
+                answer = service.getInsPrkState(q, buildRequestContext());
+            } catch (RuntimeException e) {
+                // Непредвиденная ошибка ВНЕ тела сервиса — например, не удалось открыть
+                // соединение с БД (падает на границе @Transactional, до внутреннего catch).
+                // Возвращаем errcode 2, а не пустой ответ (как общий catch старого сервиса).
+                log.error("Критическая ошибка обработки GetInsPrkState (nrec={}): {}",
+                        q == null ? null : q.getNrec(), e.toString(), e);
+                answer = new Answer();
+                if (q != null) {
+                    answer.setNrec(q.getNrec());
+                }
+                answer.setIns(new Ins());   // тег <ins/> присутствует всегда
+                answer.setAck("2");
+                answer.getErr().add(new Err(String.valueOf(ErrCode.STRUCT.getCode()),
+                        ErrCode.STRUCT.getText()));
+            }
         }
 
         GetInsPrkStateResponse response = new GetInsPrkStateResponse();
