@@ -71,4 +71,29 @@
             </plugin>
         </plugins>
     </build>
+
+    <!--
+      Профиль сборки подставляет spring.profiles.active в application.properties
+      (плейсхолдер @activatedProperties@ — фильтрация ресурсов из spring-boot-starter-parent).
+      local — по умолчанию (разработка), test — сборка для тестового сервера (-P test):
+      тогда активируется application-test.properties с подключением к БД по общему
+      файлу /opt/tomcat/tfoms/conf/common.properties.
+    -->
+    <profiles>
+        <profile>
+            <id>local</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <activatedProperties>local</activatedProperties>
+            </properties>
+        </profile>
+        <profile>
+            <id>test</id>
+            <properties>
+                <activatedProperties>test</activatedProperties>
+            </properties>
+        </profile>
+    </profiles>
 </project>
