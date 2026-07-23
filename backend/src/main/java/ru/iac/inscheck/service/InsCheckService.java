@@ -112,8 +112,15 @@ public class InsCheckService {
             errors.add(ErrCode.STRUCT);
         }
 
-        // 3.1. Журнал операций (как в старом сервисе — при нормальном потоке)
-        writeLog(q, ctx, errors);
+        // 3.1. Журнал операций (как в старом сервисе — при нормальном потоке).
+        // Журналирование — best-effort: сбой записи в журнал (например, недоступна/отличается
+        // таблица INSCHECKLOG) НЕ должен превращать нормальный ответ в errcode 2. Вставка идёт
+        // в отдельной транзакции (REQUIRES_NEW), поэтому её откат не задевает основной поток.
+        try {
+            writeLog(q, ctx, errors);
+        } catch (RuntimeException e) {
+            log.error("Не удалось записать журнал InscheckLog (nrec={}): {}", q.getNrec(), e.toString(), e);
+        }
 
         fillErrors(answer, errors);
         // ack=0 только при отсутствии ошибок (СП найдена и вопросов нет). Тег <ins> теперь

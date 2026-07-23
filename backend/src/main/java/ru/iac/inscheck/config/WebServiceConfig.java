@@ -10,10 +10,13 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.ws.config.annotation.EnableWs;
 import org.springframework.ws.config.annotation.WsConfigurerAdapter;
+import org.springframework.ws.server.EndpointInterceptor;
 import org.springframework.ws.transport.http.MessageDispatcherServlet;
 import org.springframework.ws.wsdl.wsdl11.DefaultWsdl11Definition;
 import org.springframework.xml.xsd.SimpleXsdSchema;
 import org.springframework.xml.xsd.XsdSchema;
+
+import java.util.List;
 
 /**
  * Конфигурация SOAP-эндпоинта.
@@ -34,6 +37,12 @@ public class WebServiceConfig extends WsConfigurerAdapter {
         return new ServletRegistrationBean<>(servlet, "/ws/*");
     }
 
+    /** Приводит конверт ответа к формату старого сервиса (префикс soap, без пустого Header). */
+    @Override
+    public void addInterceptors(List<EndpointInterceptor> interceptors) {
+        interceptors.add(new SoapEnvelopeInterceptor());
+    }
+
     /**
      * Фильтр вокруг /ws/*: если запрос не разобрался (сервлет вернул пусто/упал),
      * отдаёт HTML-страницу «Критическая ошибка» вместо пустого ответа — как старый сервис.
@@ -43,6 +52,20 @@ public class WebServiceConfig extends WsConfigurerAdapter {
         FilterRegistrationBean<CriticalErrorFilter> reg = new FilterRegistrationBean<>(new CriticalErrorFilter());
         reg.addUrlPatterns("/ws/*");
         reg.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return reg;
+    }
+
+    /**
+     * Фильтр вокруг /ws/*: отсекает мусор/комментарии после закрывающего тега конверта во
+     * входящем запросе (строгий парсер на них падает; старый сервис такие запросы обрабатывал).
+     * Порядок — сразу после CriticalErrorFilter, но до разбора запроса сервлетом.
+     */
+    @Bean
+    public FilterRegistrationBean<TrailingContentTrimFilter> trailingContentTrimFilter() {
+        FilterRegistrationBean<TrailingContentTrimFilter> reg =
+                new FilterRegistrationBean<>(new TrailingContentTrimFilter());
+        reg.addUrlPatterns("/ws/*");
+        reg.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
         return reg;
     }
 

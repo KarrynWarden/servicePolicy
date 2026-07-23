@@ -3,6 +3,8 @@ package ru.iac.inscheck.dao;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import ru.iac.inscheck.util.SqlLoader;
 
 import java.sql.Types;
@@ -29,6 +31,7 @@ public class InsCheckLogDao {
      * @param err    коды возвращаемых ошибок через «,»
      * @param iptfoms IP, на который сделан запрос (для 10.0.14.46), иначе null
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void insertLog(String method, String login, String ip, String inpar,
                           String err, String typeOrg, String codeOrg, String iptfoms) {
         MapSqlParameterSource p = new MapSqlParameterSource();
