@@ -62,10 +62,10 @@ public class InsCheckEndpoint {
             try {
                 answer = service.getInsPrkState(q, buildRequestContext());
             } catch (RuntimeException e) {
-                // Непредвиденная ошибка ВНЕ тела сервиса — например, не удалось открыть
-                // соединение с БД (падает на границе @Transactional, до внутреннего catch).
-                // Возвращаем errcode 2, а не пустой ответ (как общий catch старого сервиса).
-                log.error("Критическая ошибка обработки GetInsPrkState (nrec={}): {}",
+                // Непредвиденная (системная) ошибка ВНЕ тела сервиса — например, не удалось
+                // открыть соединение с БД (падает на границе @Transactional, до внутреннего
+                // catch). Клиенту — обезличенный errcode 500; полная причина уходит В ЛОГ.
+                log.error("Системная ошибка обработки GetInsPrkState (nrec={}): {}",
                         q == null ? null : q.getNrec(), e.toString(), e);
                 answer = new Answer();
                 if (q != null) {
@@ -73,8 +73,8 @@ public class InsCheckEndpoint {
                 }
                 answer.setIns(new Ins());   // тег <ins/> присутствует всегда
                 answer.setAck("2");
-                answer.getErr().add(new Err(String.valueOf(ErrCode.STRUCT.getCode()),
-                        ErrCode.STRUCT.getText()));
+                answer.getErr().add(new Err(String.valueOf(ErrCode.SYSTEM.getCode()),
+                        ErrCode.SYSTEM.getText()));
             }
         }
 

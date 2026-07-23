@@ -106,10 +106,11 @@ public class InsCheckService {
                 processSearch(q, sp, answer, errors);
             }
         } catch (RuntimeException e) {
-            // Аналог общего catch в старом коде: код 2 — непредвиденная ошибка.
-            // Логируем причину (обычно SQL/схема) — иначе errcode 2 ничего не объясняет.
-            log.error("Ошибка обработки GetInsPrkState (nrec={}): {}", q.getNrec(), e.toString(), e);
-            errors.add(ErrCode.STRUCT);
+            // Непредвиденная (системная) ошибка: SQL/нет прав на таблицу/недоступна БД и т.п.
+            // Пользователю уходит обезличенный errcode 500 «Произошла системная ошибка…»,
+            // а полная причина (пользователь/БД/таблица) пишется В ЛОГ — не в ответ клиенту.
+            log.error("Системная ошибка обработки GetInsPrkState (nrec={}): {}", q.getNrec(), e.toString(), e);
+            errors.add(ErrCode.SYSTEM);
         }
 
         // 3.1. Журнал операций (как в старом сервисе — при нормальном потоке).
