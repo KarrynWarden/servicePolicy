@@ -271,7 +271,7 @@ HTML_TMPL = r"""<!doctype html>
     <label><input type="checkbox" id="ignore111txt"> игнорировать текст ошибки 111</label>
     <label><input type="checkbox" id="ignoreHalg"> не считать различием alg при H-алгоритме</label>
     <label><input type="checkbox" id="ignoreHfound"> не считать различием: у оригинала 200 «СП не найдена», а у меня найдено по H-алгоритму</label>
-    <label><input type="checkbox" id="ignoreEmptyIns"> игнорировать механику typeprk&ne;1 (пустой ins старого: ins + alg + ack)</label>
+    <label><input type="checkbox" id="ignoreEmptyIns"> игнорировать механику typeprk&ne;1 (пустой ins старого: ins + alg + ack + p_disp/p_proph/p_healthc)</label>
     <input type="search" id="q" placeholder="поиск по # или nrec…">
     <span class="hint">клик по строке — полный ответ и различия</span>
   </div>
@@ -337,7 +337,7 @@ function filt(lines, opts){
   const out=[];
   for(let i=0;i<lines.length;i++){
     const l=lines[i];
-    if(igP && ignLineP(l)) continue;
+    if((igP || dropIns) && ignLineP(l)) continue;   // p_disp/p_proph/p_healthc: и по своей галочке, и по механике typeprk<>1
     // alg убирается и по H-галочке, и по механике typeprk<>1: старый при typeprk<>1
     // не отдаёт alg вовсе (ls_alg берётся из той же строки RES, что и ins), а мой отдаёт.
     if((dropAlg || dropIns) && /^\s*alg\s*:/.test(l)) continue;
