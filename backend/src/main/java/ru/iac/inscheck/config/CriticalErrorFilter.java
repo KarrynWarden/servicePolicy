@@ -40,10 +40,30 @@ public class CriticalErrorFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        HttpServletRequest effective = request;
+        byte[] body = null;
+        if ("POST".equalsIgnoreCase(request.getMethod())) {
+            // Тело читаем здесь (поток одноразовый) и отдаём дальше через обёртку.
+            body = request.getInputStream().readAllBytes();
+            effective = new CachedBodyHttpServletRequest(request, body);
+
+            // Проверяем XML ДО передачи в сервлет: на битом XML отдаём SOAP Fault с
+            // описанием и позицией ошибки — как старый сервис. «Хвост» после конверта
+            // (комментарии/мусор) при проверке отбрасываем: он допустим.
+            String parseError = SoapFaultWriter.checkXml(
+                    TrailingContentTrimFilter.trimAfterEnvelope(body));
+            if (parseError != null) {
+                log.warn("Некорректный XML в запросе: {}", parseError);
+                SoapFaultWriter.writeFault(response, parseError,
+                        DualProtocolSaajMessageFactory.isSoap12(body));
+                return;
+            }
+        }
+
         ContentCachingResponseWrapper wrapper = new ContentCachingResponseWrapper(response);
         boolean failed = false;
         try {
-            filterChain.doFilter(request, wrapper);
+            filterChain.doFilter(effective, wrapper);
         } catch (Exception e) {
             // Разбор запроса упал (например, MessageDispatcherServlet не смог создать SOAP-сообщение).
             log.error("Критическая ошибка при обработке SOAP-запроса: {}", e.toString(), e);
@@ -59,13 +79,14 @@ public class CriticalErrorFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Пусто/ошибка — запрос не разобрался. Отдаём HTML, как старый сервис.
+        // XML был корректен, но ответа нет — нештатный сбой обработки.
+        // Здесь остаётся HTML-страница «Критическая ошибка», как у старого сервиса.
         response.reset();
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         response.setContentType("text/html; charset=utf-8");
-        byte[] body = CRITICAL_HTML.getBytes(StandardCharsets.UTF_8);
-        response.setContentLength(body.length);
-        response.getOutputStream().write(body);
+        byte[] html = CRITICAL_HTML.getBytes(StandardCharsets.UTF_8);
+        response.setContentLength(html.length);
+        response.getOutputStream().write(html);
         response.getOutputStream().flush();
     }
 }
