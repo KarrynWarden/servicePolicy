@@ -11,6 +11,7 @@ import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.ws.config.annotation.EnableWs;
 import org.springframework.ws.config.annotation.WsConfigurerAdapter;
 import org.springframework.ws.server.EndpointInterceptor;
+import org.springframework.ws.soap.saaj.SaajSoapMessageFactory;
 import org.springframework.ws.transport.http.MessageDispatcherServlet;
 import org.springframework.ws.wsdl.wsdl11.DefaultWsdl11Definition;
 import org.springframework.xml.xsd.SimpleXsdSchema;
@@ -67,6 +68,16 @@ public class WebServiceConfig extends WsConfigurerAdapter {
         reg.addUrlPatterns("/ws/*");
         reg.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
         return reg;
+    }
+
+    /**
+     * Фабрика сообщений, принимающая конверт SOAP 1.1 И 1.2 (старый сервис принимает обе
+     * версии и отвечает в версии запроса). Имя бина обязано быть messageFactory —
+     * именно его ищет MessageDispatcherServlet.
+     */
+    @Bean
+    public SaajSoapMessageFactory messageFactory() {
+        return new DualProtocolSaajMessageFactory();
     }
 
     @Bean

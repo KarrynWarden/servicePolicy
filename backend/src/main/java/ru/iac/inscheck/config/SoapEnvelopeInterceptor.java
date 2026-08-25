@@ -60,10 +60,15 @@ public class SoapEnvelopeInterceptor implements EndpointInterceptor {
                 header.detachNode();
             }
 
-            // 2. Префикс конверта SOAP-ENV -> soap.
+            // 2. Префикс конверта SOAP-ENV -> soap. Namespace берём У САМОГО конверта,
+            //    а не константой: ответ может быть как SOAP 1.1, так и 1.2 (по версии запроса).
+            String envNs = env.getNamespaceURI();
+            if (envNs == null || envNs.isEmpty()) {
+                envNs = SOAP_NS;
+            }
             String oldPrefix = env.getPrefix();
             if (!TARGET_PREFIX.equals(oldPrefix)) {
-                env.addNamespaceDeclaration(TARGET_PREFIX, SOAP_NS);
+                env.addNamespaceDeclaration(TARGET_PREFIX, envNs);
                 env.setPrefix(TARGET_PREFIX);
                 if (oldPrefix != null && !oldPrefix.isEmpty()) {
                     env.removeNamespaceDeclaration(oldPrefix);

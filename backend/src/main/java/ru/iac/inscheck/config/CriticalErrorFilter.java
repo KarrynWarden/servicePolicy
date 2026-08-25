@@ -48,6 +48,10 @@ public class CriticalErrorFilter extends OncePerRequestFilter {
             // Разбор запроса упал (например, MessageDispatcherServlet не смог создать SOAP-сообщение).
             log.error("Критическая ошибка при обработке SOAP-запроса: {}", e.toString(), e);
             failed = true;
+        } finally {
+            // Версия SOAP запоминается на время запроса — снимаем, чтобы она не досталась
+            // следующему запросу на этом же потоке пула.
+            DualProtocolSaajMessageFactory.clearRequestVersion();
         }
 
         if (!failed && wrapper.getContentSize() > 0) {
