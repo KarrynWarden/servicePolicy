@@ -50,7 +50,7 @@ create trigger trg_iprkdept_lastupdate
 -- ---------------------------------------------------------------------
 create table if not exists medree_prdisp (
     id        bigint not null,         -- идентификатор ЗЛ (IPerson.ID)
-    groupcode smallint not null,       -- 1 — диспансеризация, 2 — профосмотр, 3 — Центр здоровья
+    groupcode smallint not null,       -- 1 — диспансеризация, 3 — профосмотр, 2 — Центр здоровья
     year      integer not null,        -- год (EXTRACT(YEAR FROM date_2))
     month     integer                  -- месяц
 );

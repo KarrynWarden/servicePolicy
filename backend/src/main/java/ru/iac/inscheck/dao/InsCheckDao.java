@@ -154,7 +154,7 @@ public class InsCheckDao {
 
     /**
      * Признак прохождения мероприятия по MEDREE_PRDISP: groupcode 1 — диспансеризация,
-     * 2 — профосмотр, 3 — Центр здоровья, за указанный год.
+     * 3 — профосмотр, 2 — Центр здоровья, за указанный год.
      */
     public boolean hasDisp(long personId, int groupcode, int year) {
         MapSqlParameterSource p = new MapSqlParameterSource()

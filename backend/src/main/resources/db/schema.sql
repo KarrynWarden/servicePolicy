@@ -135,12 +135,12 @@ create table if not exists inschecklimit (
 -- ---------------------------------------------------------------------
 -- Признаки диспансеризации/профосмотра/Центра здоровья (MEDREE_PRDISP).
 -- Источник для p_disp/p_proph/p_healthc. Заполняется ETL-джобом из Oracle
--- (таблицы medree на PG нет). GROUPCODE: 1 — диспансеризация, 2 — профосмотр,
--- 3 — Центр здоровья.
+-- (таблицы medree на PG нет). GROUPCODE: 1 — диспансеризация, 3 — профосмотр,
+-- 2 — Центр здоровья.
 -- ---------------------------------------------------------------------
 create table if not exists medree_prdisp (
     id        bigint not null,         -- идентификатор ЗЛ (IPerson.ID)
-    groupcode smallint not null,       -- 1 — дисп., 2 — проф., 3 — центр здоровья
+    groupcode smallint not null,       -- 1 — дисп., 3 — проф., 2 — центр здоровья
     year      integer not null,        -- год (EXTRACT(YEAR FROM date_2))
     month     integer                  -- месяц
 );

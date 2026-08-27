@@ -399,10 +399,11 @@ public class InsCheckService {
     private void fillHealthFlags(Answer answer, long personId, int year) {
         // Старый сервис отдаёт p_disp/p_proph/p_healthc как "0"/"1" (сырое значение
         // BUFF_INSCHECK_RES), НЕ "Да"/"Нет" (постановка расходится с реализацией —
-        // ориентир на старый сервис). MEDREE_PRDISP.groupcode: 1 — дисп., 2 — проф., 3 — ЦЗ.
+        // ориентир на старый сервис).
+        // MEDREE_PRDISP.groupcode: 1 — диспансеризация, 3 — профосмотр, 2 — Центр здоровья.
         answer.setP_disp(flag01(dao.hasDisp(personId, 1, year)));
-        answer.setP_proph(flag01(dao.hasDisp(personId, 2, year)));
-        answer.setP_healthc(flag01(dao.hasDisp(personId, 3, year)));
+        answer.setP_proph(flag01(dao.hasDisp(personId, 3, year)));
+        answer.setP_healthc(flag01(dao.hasDisp(personId, 2, year)));
     }
 
     // ===== Сборка элементов ответа =====
