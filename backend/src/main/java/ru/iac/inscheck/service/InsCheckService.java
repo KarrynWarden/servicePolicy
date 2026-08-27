@@ -294,13 +294,18 @@ public class InsCheckService {
             case C01 -> sp.hasFio() && (sp.hasDr() || sp.hasMr()) && sp.hasPolis();
             case C02 -> sp.hasFio() && (sp.hasDr() || sp.hasMr()) && sp.hasDoc();
             case C03 -> sp.hasFio() && (sp.hasDr() || sp.hasMr()) && sp.hasSnils();
-            case R01 -> sp.hasFio() && sp.hasDr() && sp.hasPolis();
+            // Р01/В01–В03 работают по правилу «3 из 4х» {метафон(Ф), метафон(И), метафон(О), Др(/Мр)}.
+            // Смысл правила в том, что ЛЮБОЙ ОДИН из четырёх может отсутствовать или не совпасть,
+            // поэтому требовать Др(/Мр) здесь нельзя — иначе при пустом Др алгоритм не запускается
+            // и поиск проваливается дальше (наблюдалось: выдавался В04 вместо Р01).
+            // Недостающие реквизиты просто дают 0 баллов — это уже учтено в самих SQL.
+            case R01 -> sp.hasFio() && sp.hasPolis();
             case H01 -> sp.hasFio() && sp.hasDr() && sp.hasPolis();
             case H02 -> sp.hasFio() && sp.hasDr() && sp.hasDoc();
             case H03 -> sp.hasFio() && sp.hasDr() && sp.hasSnils();
-            case V01 -> sp.hasFio() && (sp.hasDr() || sp.hasMr()) && sp.hasPolis();
-            case V02 -> sp.hasFio() && (sp.hasDr() || sp.hasMr()) && sp.hasDoc();
-            case V03 -> sp.hasFio() && (sp.hasDr() || sp.hasMr()) && sp.hasSnils();
+            case V01 -> sp.hasFio() && sp.hasPolis();      // «3 из 4х» — см. комментарий к R01
+            case V02 -> sp.hasFio() && sp.hasDoc();        // «3 из 4х»
+            case V03 -> sp.hasFio() && sp.hasSnils();      // «3 из 4х»
             case V04 -> sp.hasPolis();
             case V05 -> sp.hasFio() && sp.hasDr();
             case V06 -> sp.hasFio() && sp.hasDr();

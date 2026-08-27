@@ -36,13 +36,17 @@ public class InsCheckDao {
     // ===== Справочные проверки =====
 
     /**
-     * Контроль 111: код организации присутствует среди актуальных (dbegin..dend) кодов
-     * SpMO (type_org=1) / SpSMO (type_org=2), либо = 0 для type_org=3.
+     * Контроль 111: код организации присутствует среди кодов SpMO (type_org=1) /
+     * SpSMO (type_org=2), действовавших в период запроса [date1; date2], либо = 0
+     * для type_org=3. Период запроса, а не текущая дата: код мог быть закрыт позже
+     * даты обращения и всё равно был верным на момент запроса.
      */
-    public boolean orgExists(String typeOrg, String codeOrg) {
+    public boolean orgExists(String typeOrg, String codeOrg, LocalDate date1, LocalDate date2) {
         MapSqlParameterSource p = new MapSqlParameterSource()
                 .addValue("type_org", typeOrg)
-                .addValue("code_org", codeOrg);
+                .addValue("code_org", codeOrg)
+                .addValue("date1", date1)
+                .addValue("date2", date2);
         Integer cnt = jdbc.queryForObject(sql.getSql("ref/org_check.sql"), p, Integer.class);
         return cnt != null && cnt > 0;
     }

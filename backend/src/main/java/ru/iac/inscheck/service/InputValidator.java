@@ -67,7 +67,9 @@ public class InputValidator {
         // кодов SpMO/SpSMO (type_org 1/2) либо = 0 для type_org=3. ---
         String codeOrg = trim(q.getCode_org());
         if (notBlank(codeOrg) && notBlank(typeOrg) && typeOrg.matches("[123]")
-                && !dao.orgExists(typeOrg, codeOrg)) {
+                && !dao.orgExists(typeOrg, codeOrg,
+                        d1 != null ? d1 : LocalDate.now(),
+                        d2 != null ? d2 : LocalDate.now())) {
             v.add(ErrCode.E111);
         }
 
