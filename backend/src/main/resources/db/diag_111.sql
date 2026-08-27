@@ -39,8 +39,7 @@ select 47,
 -- 4. Период актуальности на дату запроса (date1/date2 = 2023-01-01).
 --    Сейчас сервис даты НЕ учитывает; здесь видно, повлияло бы это или нет.
 select code, dbegin, dend,
-       case when (dbegin is null or dbegin <= date '2023-01-01')
-             and (dend   is null or dend   >= date '2023-01-01')
+       case when dbegin <= date '2023-01-01' and dend >= date '2023-01-01'
             then 'действует на 2023-01-01'
             else 'НЕ действует на 2023-01-01' end as "актуальность"
 from spmo
