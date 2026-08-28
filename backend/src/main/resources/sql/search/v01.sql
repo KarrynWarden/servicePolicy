@@ -1,9 +1,9 @@
 -- В01: 3 из 4х {метафон(Фам), метафон(Им), метафон(От), (Др или схожее(Мр))} + Полис.
--- Метафон-условия на b, Др/Мр на c, Полис на a (a.id=b.id=c.id).
+-- Метафон-условия на b, Др/Мр на c, Полис на a (в пределах СК*: coalesce(idmain,id)).
 select a.id as id, max(a.idmain) as idmain
 from iperson a
-join iperson b on b.id = a.id
-join iperson c on c.id = a.id
+join iperson b on coalesce(b.idmain, b.id) = coalesce(a.idmain, a.id)
+join iperson c on coalesce(c.idmain, c.id) = coalesce(a.idmain, a.id)
 where a.vpolis = :vpolis
   and (a.npolis = :npolis or (:vpolis = 3 and a.enp = :npolis))
   and (

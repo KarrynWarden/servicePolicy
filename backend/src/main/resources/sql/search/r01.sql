@@ -1,11 +1,11 @@
 -- Р01: 3 из 4х {метафон(Фам), метафон(Им), метафон(От), Др} + Полис (обязателен).
 -- Перенос пакета: метафон-условия на записи b, Др на записи c, Полис на a
--- (a.id=b.id=c.id). META_* в IPERSON предрасчитаны Oracle a81.SoundexRUS;
+-- (в пределах СК*: coalesce(idmain,id)). META_* в IPERSON предрасчитаны Oracle a81.SoundexRUS;
 -- метафон входа считается в Java тем же алгоритмом (RussianMetaphone) и приходит как :meta_*.
 select a.id as id, max(a.idmain) as idmain
 from iperson a
-join iperson b on b.id = a.id
-join iperson c on c.id = a.id
+join iperson b on coalesce(b.idmain, b.id) = coalesce(a.idmain, a.id)
+join iperson c on coalesce(c.idmain, c.id) = coalesce(a.idmain, a.id)
 where a.vpolis = :vpolis
   and (a.npolis = :npolis or (:vpolis = 3 and a.enp = :npolis))
   and (

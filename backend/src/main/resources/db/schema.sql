@@ -52,6 +52,10 @@ create index if not exists ix_iperson_enp      on iperson (enp);
 create index if not exists ix_iperson_ss       on iperson (ss);
 create index if not exists ix_iperson_idmain   on iperson (idmain);
 create index if not exists ix_iperson_idrow    on iperson (idrow);
+-- Ключ комплекта СК* (п.4.4). Алгоритмы поиска соединяют записи ЗЛ именно по нему
+-- (условия, соединённые «+», могут совпасть в РАЗНЫХ записях одного комплекта),
+-- поэтому нужен функциональный индекс — обычный ix_iperson_idmain здесь не работает.
+create index if not exists ix_iperson_sk       on iperson ((coalesce(idmain, id)));
 
 -- ---------------------------------------------------------------------
 -- Документы ЗЛ (IDOC). Связь с iperson по IDROW; для поиска/сверки берутся

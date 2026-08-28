@@ -1,11 +1,11 @@
 -- С02: схожее(ФИО) + (Др или схожее(Мр)) + Документ.
 -- Документ хранится в IDOC (связь по IDROW, TYPEROW in (1,2)) — на iperson поля
--- doctype/docser/docnum отсутствуют. Условия в разных записях одного ЗЛ (a.id=b.id=c.id).
+-- doctype/docser/docnum отсутствуют. Условия в разных записях одного ЗЛ (в пределах СК*: coalesce(idmain,id)).
 select a.id as id, max(a.idmain) as idmain
 from iperson a
 join idoc da on da.idrow = a.idrow and da.typerow in (1, 2)
-join iperson b on b.id = a.id
-join iperson c on c.id = a.id
+join iperson b on coalesce(b.idmain, b.id) = coalesce(a.idmain, a.id)
+join iperson c on coalesce(c.idmain, c.id) = coalesce(a.idmain, a.id)
 where da.doctype = :doctype
   and da.docser = :docser
   and da.docnum = :docnum
