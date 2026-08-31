@@ -5,7 +5,7 @@ from iperson a
 join iperson b on coalesce(b.idmain, b.id) = coalesce(a.idmain, a.id)
 join iperson c on coalesce(c.idmain, c.id) = coalesce(a.idmain, a.id)
 where a.vpolis = :vpolis
-  and (a.npolis = :npolis or (:vpolis = 3 and a.enp = :npolis))
+  and (ltrim(a.npolis, '0') = :npolis or (:vpolis = 3 and ltrim(a.enp, '0') = :npolis))
   and (
         (case when b.meta_fam = :meta_fam then 1 else 0 end)
       + (case when b.meta_im  = :meta_im  then 1 else 0 end)

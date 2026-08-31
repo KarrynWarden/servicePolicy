@@ -49,6 +49,11 @@ create index if not exists ix_iperson_ot_trgm  on iperson using gin (ot  gin_trg
 create index if not exists ix_iperson_meta     on iperson (meta_fam, meta_im, meta_ot);
 create index if not exists ix_iperson_polis    on iperson (vpolis, npolis);
 create index if not exists ix_iperson_enp      on iperson (enp);
+-- Номер полиса сравнивается по значащей части: в Регистре лидирующие нули хранятся
+-- непоследовательно, поэтому и запрос, и колонка приводятся через ltrim(..., '0').
+-- Нужны функциональные индексы — обычные ix_iperson_polis/ix_iperson_enp под ltrim не подходят.
+create index if not exists ix_iperson_polis_nz on iperson (vpolis, ltrim(npolis, '0'));
+create index if not exists ix_iperson_enp_nz   on iperson (ltrim(enp, '0'));
 create index if not exists ix_iperson_ss       on iperson (ss);
 create index if not exists ix_iperson_idmain   on iperson (idmain);
 create index if not exists ix_iperson_idrow    on iperson (idrow);

@@ -205,17 +205,24 @@ public class InputValidator {
         }
         // контроль 105: оба поля должны быть заполнены и пройти проверку значности
         boolean ok = notBlank(vpolis) && notBlank(npolis) && P_NUM.matcher(npolis).matches();
+        // Значность: «NPOLIS состоит из N цифр С УЧЁТОМ лидирующих нулей и не менее M цифр
+        // БЕЗ лидирующих нулей». То есть N — это длина канонического (дополненного нулями)
+        // номера, а не требование прислать ровно N символов: лидирующие нули можно опустить.
+        // Проверяем, что номер укладывается в N знаков и значащая часть не короче M.
         if (ok && "2".equals(vpolis)) {
-            ok = npolis.length() == 9 && stripLeadingZeros(npolis).length() >= 7;
+            ok = npolis.length() <= 9 && stripLeadingZeros(npolis).length() >= 7;
         } else if (ok && "3".equals(vpolis)) {
-            ok = npolis.length() == 16 && stripLeadingZeros(npolis).length() >= 15;
+            ok = npolis.length() <= 16 && stripLeadingZeros(npolis).length() >= 15;
         }
         if (!ok) {
             v.add(ErrCode.E105);
             return; // Vpolis,Npolis считаются незаполненными
         }
         sp.setVpolis(Integer.valueOf(vpolis));
-        sp.setNpolis(npolis);
+        // В поиск номер идёт БЕЗ лидирующих нулей: в Регистре они хранятся непоследовательно
+        // (где-то с ними, где-то без), поэтому сравнение ведётся по значащей части —
+        // в SQL колонка тоже приводится через ltrim(..., '0').
+        sp.setNpolis(stripLeadingZeros(npolis));
     }
 
     private void validateDoc(Query q, Validation v, SearchParams sp) {
