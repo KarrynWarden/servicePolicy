@@ -74,6 +74,9 @@ create table if not exists idoc (
     docnum   varchar(20)
 );
 create index if not exists ix_idoc_idrow on idoc (idrow);
+-- Алгоритмы С02/H02/В02 ищут ЗЛ ПО ДОКУМЕНТУ (doctype+docser+docnum), а не по idrow.
+-- Без этого индекса каждый такой запрос сканирует idoc целиком.
+create index if not exists ix_idoc_doc   on idoc (doctype, docser, docnum);
 
 -- ---------------------------------------------------------------------
 -- Прикрепление ЗЛ (IPRKDEPT). Полная структура по постановке (PG.IPRKDEPT).

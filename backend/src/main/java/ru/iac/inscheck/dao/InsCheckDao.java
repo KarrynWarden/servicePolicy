@@ -1,5 +1,7 @@
 package ru.iac.inscheck.dao;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -24,6 +26,8 @@ import java.util.List;
  */
 @Repository
 public class InsCheckDao {
+
+    private static final Logger log = LoggerFactory.getLogger(InsCheckDao.class);
 
     private final NamedParameterJdbcTemplate jdbc;
     private final SqlLoader sql;
@@ -84,10 +88,20 @@ public class InsCheckDao {
 
     // ===== Поиск СП =====
 
-    /** Выполняет один алгоритм поиска (Таблица 1 / раздел H). Возвращает найденные СК. */
+    /**
+     * Выполняет один алгоритм поиска (Таблица 1 / раздел H). Возвращает найденные СК.
+     * При DEBUG пишет длительность каждого алгоритма — по логу сразу видно, какой из них
+     * тормозит, без перебора запросов вручную.
+     */
     public List<Candidate> search(SearchAlgorithm algorithm, SearchParams sp) {
-        return jdbc.query(sql.getSql(algorithm.getSqlFile()), searchParams(sp),
+        long startNs = System.nanoTime();
+        List<Candidate> rows = jdbc.query(sql.getSql(algorithm.getSqlFile()), searchParams(sp),
                 (rs, n) -> new Candidate(rs.getLong("id"), longOrNull(rs, "idmain")));
+        if (log.isDebugEnabled()) {
+            log.debug("Алгоритм {}: {} мс, найдено {}",
+                    algorithm.getCode(), (System.nanoTime() - startNs) / 1_000_000, rows.size());
+        }
+        return rows;
     }
 
     private MapSqlParameterSource searchParams(SearchParams sp) {
